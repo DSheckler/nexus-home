@@ -19,7 +19,7 @@ import { getWeeklyBriefing } from "./weekly.js";
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.14.0";
+const VERSION = "1.14.1";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -146,7 +146,7 @@ async function scopeOf(request, env) {
 }
 const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done)$/;
 // Invitados: solo la lista de la compra y las notas de texto
-const GUEST_PATHS = /^\/api\/(?:(shopping|notes)(\/[a-z0-9]{1,20})?|config|live)$/;
+const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
 // El asistente cambió algo de la casa: los móviles reciben la lista y las notas al momento
 function pushHome(env, ctx) {
@@ -320,6 +320,7 @@ async function handleApi(request, env, url, ctx) {
     if (method === "POST") { const n = await H.addNote(env, await body(request)); return notesDone(await H.listNotes(env), n, 201); }
   }
   if (path === "/api/notes/voice" && method === "POST") {
+    if (scope === "guest") return json({ ok: false, error: "forbidden" }, 403); // invitados: solo notas de texto
     if (Number(request.headers.get("Content-Length") || 0) > H.VOICE_MAX_BYTES) return json({ ok: false, error: "La nota de voz es demasiado larga" }, 413);
     const dec = (h) => { try { return decodeURIComponent(request.headers.get(h) || ""); } catch { return ""; } };
     const n = await H.addVoiceNote(env, {
