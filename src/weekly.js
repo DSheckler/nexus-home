@@ -6,6 +6,7 @@ import { getWeatherDetail } from "./weather.js";
 import { nextPickups, upcomingDates } from "./household.js";
 import { listChores, listReminders, todayKey, addDays } from "./planner.js";
 import { powerMonth } from "./consumption.js";
+import * as L from "./life.js";
 
 const TZ = "Europe/Stockholm";
 const fDay = new Intl.DateTimeFormat("es-ES", { weekday: "long", timeZone: "UTC" });
@@ -52,6 +53,15 @@ export async function getWeeklyBriefing(env) {
 
   const due = (chores || []).filter((c) => c.dueIn <= 7);
   if (due.length) parts.push(`Tareas de la semana: ${due.slice(0, 5).map((c) => `${c.name}${c.who ? ` (le toca a ${c.who})` : ""}`).join(", ")}.`);
+
+  const [plants, menu] = await Promise.all([safe(L.listPlants(env)), safe(L.getMenu(env, 8))]);
+  for (const p of plants || []) if (p.pending || p.dueIn <= 7) parts.push(p.pending ? `Hay que regar ${L.plantPhrase(p.name)} cuanto antes.` : `El ${dayName(p.due)} toca regar ${L.plantPhrase(p.name)}.`);
+  const planned = (menu || []).slice(1).filter((d) => d.meal).length;
+  parts.push(planned ? `El menú tiene ${planned} de los próximos 7 días planificados.` : "El menú de la semana está vacío: podéis planificarlo en el panel o pedírmelo.");
+  for (const n of L.seasonNotices(7)) {
+    if (n.kind === "holiday" && n.inDays >= 1) parts.push(`El ${dayName(n.date)} es ${n.text}.`);
+    if (n.kind === "tip") parts.push(n.text + ".");
+  }
 
   if (detail && detail.days && detail.days.length) {
     const days = detail.days.slice(1, 7);

@@ -15,22 +15,26 @@ import { notify } from "./hub.js";
 import { powerMonth, saveReading, deleteReading } from "./consumption.js";
 import * as P from "./planner.js";
 import { getWeeklyBriefing } from "./weekly.js";
+import * as L from "./life.js";
+import { getAir, getAurora } from "./outdoor.js";
 
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.14.2";
+const VERSION = "1.15.1";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
   const safe = (p) => p.catch(() => null);
-  const [timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores] = await Promise.all([
+  const [timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, plants, menu, school, abroad, air, aurora] = await Promise.all([
     safe(H.listTimers(env)), safe(H.listShopping(env)), safe(H.listNotes(env)),
     safe(H.nextPickups(env)), safe(getPower()), safe(getWarnings()), safe(H.getSettings(env)), safe(H.upcomingDates(env, 7)),
-    safe(P.listReminders(env)), safe(P.listChores(env)),
+    safe(P.listReminders(env)), safe(P.listChores(env)), safe(L.listPlants(env)), safe(L.getMenu(env, 2)), safe(L.schoolSummary(env)),
+    safe(L.getAbroad(env)), safe(getAir(env)), safe(getAurora(env)),
   ]);
   const ai = { used: await getUsage(env).catch(() => 0), free: DAILY_FREE };
-  return { timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, ai, now: Date.now() };
+  const season = L.seasonNotices(7);
+  return { timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, plants, menu, school, abroad, air, aurora, season, ai, now: Date.now() };
 }
 
 const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // ~1 minuto de voz comprimida
@@ -74,12 +78,12 @@ async function transcribe(request, env, count = true) {
 // Un turno de conversación completo en una sola petición:
 // audio -> texto (Whisper) -> respuesta (asistente). Ahorra viajes de ida y vuelta.
 async function voiceTurn(request, env) {
-  const { audio, history } = await body(request);
+  const { audio, history, cooking } = await body(request);
   if (!audio || typeof audio !== "string") throw new Error("No llegó audio");
   if (audio.length > MAX_AUDIO_BYTES * 1.4) throw new Error("Grabación demasiado larga");
   const text = await whisper(env, audio);
   if (!text) return { text: "" };
-  const r = await askAssistant(env, { text, history });
+  const r = await askAssistant(env, { text, history, cooking: !!cooking });
   await addUsage(env, r.neurons);
   return { text, ...r };
 }
@@ -144,7 +148,7 @@ async function scopeOf(request, env) {
   if (await P.isGuest(env, key)) return "guest";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done)$/;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop))$/;
 // Invitados: solo la lista de la compra y las notas de texto
 const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
@@ -267,7 +271,9 @@ async function handleApi(request, env, url, ctx) {
     if (method === "GET") return json({ ok: true, reminders: await P.listReminders(env) });
     if (method === "POST") { await P.addReminder(env, await body(request)); return remDone(201); }
   }
-  let mr = path.match(/^\/api\/reminders\/([a-z0-9]{1,20})$/);
+  let mr = path.match(/^\/api\/reminders\/([a-z0-9]{1,20})\/fired$/);
+  if (mr && method === "POST") { await P.reminderFired(env, mr[1]); return remDone(); }
+  mr = path.match(/^\/api\/reminders\/([a-z0-9]{1,20})$/);
   if (mr && method === "DELETE") { await P.deleteReminder(env, mr[1]); return remDone(); }
 
   // Tareas de la casa
@@ -280,6 +286,55 @@ async function handleApi(request, env, url, ctx) {
   if (mr && method === "POST") { const r = await P.doneChore(env, mr[1]); return choresDone({ doneBy: r.doneBy }); }
   mr = path.match(/^\/api\/chores\/([a-z0-9]{1,20})$/);
   if (mr && method === "DELETE") { await P.deleteChore(env, mr[1]); return choresDone(); }
+
+  // Plantas: riego cada N días en fechas fijas
+  const plantsDone = async (plants, status = 200) => { notify(env, ctx, { type: "plants", plants }, ["full", "family"]); return json({ ok: true, plants }, status); };
+  if (path === "/api/plants") {
+    if (method === "GET") return json({ ok: true, plants: await L.listPlants(env) });
+    if (method === "PUT") return plantsDone(await L.savePlant(env, await body(request)));
+  }
+  mr = path.match(/^\/api\/plants\/([a-z0-9]{1,20})\/water$/);
+  if (mr && method === "POST") return plantsDone(await L.waterPlant(env, mr[1]));
+  mr = path.match(/^\/api\/plants\/([a-z0-9]{1,20})$/);
+  if (mr && method === "DELETE") return plantsDone(await L.deletePlant(env, mr[1]));
+
+  // Menú de la semana
+  const menuDone = async (menu) => { notify(env, ctx, { type: "menu", menu }, ["full", "family"]); return json({ ok: true, menu }); };
+  if (path === "/api/menu" && method === "GET") return json({ ok: true, menu: await L.getMenu(env, 7) });
+  mr = path.match(/^\/api\/menu\/(\d{4}-\d{2}-\d{2})$/);
+  if (mr && method === "PUT") return menuDone(await L.setMenu(env, mr[1], await body(request)));
+  if (mr && method === "DELETE") return menuDone(await L.setMenu(env, mr[1], {}));
+  if (path === "/api/menu/shop" && method === "POST") {
+    const b = await body(request);
+    const want = await L.menuIngredients(env, b.from, b.to);
+    const have = new Set((await H.listShopping(env)).filter((i) => !i.done).map((i) => i.text.toLowerCase()));
+    const add = want.filter((i) => !have.has(i.toLowerCase()));
+    const items = add.length ? await H.addShopping(env, add) : await H.listShopping(env);
+    notify(env, ctx, { type: "shopping", items });
+    return json({ ok: true, added: add, items });
+  }
+
+  // Colegio, familia en otro país y vacaciones
+  if (path === "/api/school") {
+    if (method === "GET") return json({ ok: true, school: await L.getSchool(env) });
+    if (method === "PUT") { const school = await L.setSchool(env, await body(request)); notify(env, ctx, { type: "refresh" }, ["full"]); return json({ ok: true, school }); }
+  }
+  if (path === "/api/abroad") {
+    if (method === "GET") return json({ ok: true, abroad: await L.getAbroad(env) });
+    if (method === "PUT") { const abroad = await L.setAbroad(env, (await body(request)).abroad); notify(env, ctx, { type: "refresh" }, ["full"]); return json({ ok: true, abroad }); }
+  }
+  if (path === "/api/vacation") {
+    if (method === "GET") return json({ ok: true, vacation: await L.vacation(env) });
+    if (method === "PUT" || method === "DELETE") {
+      const vacation = await L.setVacation(env, method === "DELETE" ? {} : await body(request));
+      notify(env, ctx, { type: "refresh" }, ["full"]);
+      return json({ ok: true, vacation });
+    }
+  }
+  if (path === "/api/outdoor" && method === "GET") {
+    const [air, aurora] = await Promise.all([getAir(env).catch(() => null), getAurora(env).catch(() => null)]);
+    return json({ ok: true, air, aurora, season: L.seasonNotices(14) });
+  }
 
   // Enlaces de invitado (temporales)
   if (path === "/api/guests") {

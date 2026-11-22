@@ -70,6 +70,10 @@
     .pw-l { font-size: 13px; color: var(--muted); margin-top: 2px; }
     .pw-note { font-size: 13px; color: var(--muted); margin: 6px 2px 16px; }
     .pw-h { font-size: 15px; font-weight: 600; margin: 18px 2px 8px; }
+    .menu-li { display: block; padding: 10px 14px; }
+    .menu-li .d { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: capitalize; margin-bottom: 4px; }
+    .menu-li.today .d { color: var(--sun-ink); }
+    .menu-li input { width: 100%; margin-top: 4px; box-sizing: border-box; }
     .chore-done { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 600; background: var(--sun); color: var(--sun-ink); }
     li.due .txt { color: var(--sun-ink); font-weight: 600; }
     label.link { text-align: center; cursor: pointer; }
@@ -96,6 +100,7 @@
     <div class="tabs" role="tablist">
       <button type="button" role="tab" id="tabShop" aria-selected="true">Compra</button>
       <button type="button" role="tab" id="tabNotes" aria-selected="false">Notas</button>
+      <button type="button" role="tab" id="tabMenu" aria-selected="false">Menú</button>
       <button type="button" role="tab" id="tabChores" aria-selected="false">Tareas</button>
       <button type="button" role="tab" id="tabPower" aria-selected="false">Luz</button>
     </div>
@@ -123,6 +128,12 @@
       <button class="rec" id="recBtn" type="button"><span class="dot"></span><span id="recText">Grabar nota de voz</span></button>
       <p class="hint" id="recHint">Toca para empezar y otra vez para enviarla (máx. 1 minuto).</p>
     </section>
+    <section id="menu" class="hidden">
+      <div class="panel"><ul id="menuList"></ul></div>
+      <button class="btn" id="menuShop" type="button" style="width:100%">Pasar ingredientes a la compra</button>
+      <p class="pw-note">Escribe la cena y, si quieres, los ingredientes separados por comas. Se guarda al salir del campo.</p>
+    </section>
+
     <section id="chores" class="hidden">
       <div class="panel"><ul id="choreList"></ul></div>
       <form id="choreForm" class="note-form">
@@ -359,6 +370,7 @@
           if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
           if (msg.type === "powerMonth" && msg.powerMonth) renderPower(msg.powerMonth);
           if (msg.type === "chores" && Array.isArray(msg.chores)) renderChores(msg.chores);
+          if (msg.type === "menu" && Array.isArray(msg.menu) && !document.activeElement.closest("#menuList")) renderMenu(msg.menu);
         };
         live.onclose = () => { clearInterval(livePing); live = null; if (document.visibilityState === "visible") { setTimeout(connectLive, liveRetry); liveRetry = Math.min(liveRetry * 2, 60000); } };
         live.onerror = () => { try { live.close(); } catch { /* */ } };
@@ -408,6 +420,30 @@
           $("pwKwh").value = ""; $("status").textContent = "Consumo guardado";
         } catch (err) { $("status").textContent = err.message || "No se pudo guardar"; }
         setTimeout(() => ($("status").textContent = ""), 3000);
+      });
+
+      // ---------- Menú de la semana ----------
+      const fMenuDay = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+      function renderMenu(list) {
+        const ul = $("menuList"); ul.replaceChildren();
+        list.forEach((d, i) => {
+          const li = el("li", "menu-li" + (i === 0 ? " today" : ""));
+          li.append(el("div", "d", i === 0 ? "Hoy" : i === 1 ? "Mañana" : fMenuDay.format(new Date(d.date + "T12:00:00Z"))));
+          const meal = el("input"); meal.type = "text"; meal.maxLength = 80; meal.placeholder = "¿Qué cenamos?"; meal.value = d.meal || "";
+          const ing = el("input"); ing.type = "text"; ing.maxLength = 300; ing.placeholder = "Ingredientes (opcional)"; ing.value = (d.ingredients || []).join(", ");
+          const save = async () => { try { await api("/api/menu/" + d.date, { method: "PUT", body: { meal: meal.value, ingredients: ing.value } }); } catch { /* */ } };
+          meal.addEventListener("change", save); ing.addEventListener("change", save);
+          li.append(meal, ing); ul.append(li);
+        });
+      }
+      async function loadMenu() { try { renderMenu((await api("/api/menu")).menu); } catch { /* sin conexión */ } }
+      $("menuShop").addEventListener("click", async () => {
+        try {
+          const j = await api("/api/menu/shop", { method: "POST", body: {} });
+          renderShop(j.items);
+          $("status").textContent = j.added.length ? "Añadido a la compra: " + j.added.join(", ") : "Ya estaba todo en la lista";
+        } catch (err) { $("status").textContent = err.message || "No se pudo"; }
+        setTimeout(() => ($("status").textContent = ""), 4000);
       });
 
       // ---------- Tareas de la casa ----------
@@ -485,18 +521,20 @@
 
       // ---------- Pestañas y actualización ----------
       function tab(which) {
-        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["chores", "tabChores"], ["power", "tabPower"]]) {
+        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["menu", "tabMenu"], ["chores", "tabChores"], ["power", "tabPower"]]) {
           $(t).classList.toggle("hidden", t !== which);
           $(id).setAttribute("aria-selected", String(t === which));
         }
         store.set("tab", which);
         if (which === "power") loadPower();
         if (which === "chores") loadChores();
+        if (which === "menu") loadMenu();
       }
       $("tabShop").addEventListener("click", () => tab("shop"));
       $("tabNotes").addEventListener("click", () => tab("notes"));
       $("tabPower").addEventListener("click", () => tab("power"));
       $("tabChores").addEventListener("click", () => tab("chores"));
+      $("tabMenu").addEventListener("click", () => tab("menu"));
       tab(store.get("tab") || "shop");
 
       async function load() {
@@ -508,8 +546,8 @@
       // La familia viene de la configuración del servidor
       api("/api/config").then((c) => {
         if (c.scope === "guest") {
-          for (const id of ["tabChores", "tabPower", "recBtn", "recHint", "inviteBtn", "vcfLabel"]) $(id).classList.add("hidden");
-          if (["chores", "power"].includes(store.get("tab"))) tab("shop");
+          for (const id of ["tabChores", "tabPower", "tabMenu", "recBtn", "recHint", "inviteBtn", "vcfLabel"]) $(id).classList.add("hidden");
+          if (["chores", "power", "menu"].includes(store.get("tab"))) tab("shop");
           const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de la compra y dejar notas.");
           $("app").prepend(note);
         }

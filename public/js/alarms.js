@@ -123,8 +123,9 @@
   function check(now) {
     if (ring && ring.alarm.kind !== "timer") { const c = ring.el.querySelector(".ring-clock"); if (c) c.textContent = now.hhmm; }
 
+    const away = window.NexusHome && window.NexusHome.vacationActive && window.NexusHome.vacationActive();
     for (const a of N.state.alarms) {
-      if (!a.enabled || a.time !== now.hhmm) continue;
+      if (!a.enabled || a.time !== now.hhmm || away) continue; // de vacaciones no suenan las alarmas
       if (a.days.length && !a.days.includes(now.dow)) continue;
       const key = a.id + now.dateKey + now.hhmm;
       if (rung.has(key)) continue;

@@ -33,6 +33,13 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   y las notas durante 24 horas, sin ver nada más.
 - **Resumen de la semana** el domingo por la tarde: agenda, cumpleaños, basura, tareas, tiempo y luz.
 - **Aviso de luz barata o cara** en el panel y **comparación** del gasto con el contrato anterior.
+- **Menú de la semana** (panel, móvil y voz) que pasa los ingredientes a la lista, y **modo cocina**: la receta
+  paso a paso a pantalla completa, manejada por voz («siguiente», «repite», «pon el temporizador»).
+- **Plantas**: tarjeta con el próximo riego en días fijos (p. ej. cada dos domingos).
+- **Recordatorios que se repiten** («recuérdame cada lunes a las 8 sacar el cartón»).
+- **Suecia**: festivos, cambio de hora, neumáticos de invierno y día del detector de humo.
+- **Aurora boreal** (índice Kp de NOAA y nubosidad), **polen, calidad del aire y UV** (Open-Meteo).
+- **Colegio**: horario y qué llevar cada día; **hora de la familia en otro país**; **modo vacaciones**.
 - **Casa**: luces y enchufes Shelly (opcional).
 
 | | |

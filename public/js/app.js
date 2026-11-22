@@ -401,6 +401,7 @@
   function renderActions() {
     const actions = [
       { icon: "alarm", label: "Alarmas", run: () => ALARMS.openSheet() },
+      { icon: "menu", label: "Menú", run: () => window.NexusHome && window.NexusHome.openMenu() },
       { icon: "check", label: "Tareas", run: () => window.NexusHome && window.NexusHome.openChores() },
       { icon: "music", label: "Música", run: () => window.NexusHome && window.NexusHome.openMusic() },
       { icon: "home", label: "Casa", run: () => window.NexusHome && window.NexusHome.openHouse() },
@@ -458,6 +459,14 @@
     else if (s.onUntil > t) night = true;
     else if (s.offUntil > t || wakeUntil > t) night = false;
     else night = scheduledNight(now());
+    // Vacaciones: panel atenuado todo el día (tocar lo despierta 30 min, como de noche)
+    const vac = window.NexusHome && window.NexusHome.vacationActive && window.NexusHome.vacationActive();
+    if (vac && !(wakeUntil > t) && forcedMode !== "dia") night = true;
+    document.body.classList.toggle("vacation", !!vac);
+    if (vac) {
+      const v = window.NexusHome.settings().vacation;
+      $("vac").textContent = "De vacaciones hasta el " + new Date(v.to + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+    }
     document.body.classList.toggle("night", night);
     document.documentElement.classList.toggle("night", night);
     if ((force || night !== lastNight) && window.NexusAndroid) {
@@ -571,6 +580,7 @@
   if (window.NexusVoice) window.NexusVoice.init(window.NEXUS);
   if (window.NexusWake && window.NexusVoice) window.NexusWake.init(window.NEXUS, window.NexusVoice);
   if (window.NexusHome) window.NexusHome.init(window.NEXUS);
+  if (window.NexusCook) window.NexusCook.init(window.NEXUS);
   if (window.NexusWeather) window.NexusWeather.init(window.NEXUS);
   if (window.NexusAgenda) window.NexusAgenda.init(window.NEXUS);
 

@@ -9,6 +9,18 @@ import { getPower, nextAlarmText } from "./extras.js";
 import { config } from "./config.js";
 import { powerMonthText } from "./consumption.js";
 import * as P from "./planner.js";
+import * as L from "./life.js";
+import { getAir, getAurora } from "./outdoor.js";
+
+// Países habituales → zona horaria (para "¿qué hora es en Chile?")
+const ZONES = {
+  chile: "America/Santiago", santiago: "America/Santiago", argentina: "America/Argentina/Buenos_Aires", "buenos aires": "America/Argentina/Buenos_Aires",
+  espana: "Europe/Madrid", madrid: "Europe/Madrid", mexico: "America/Mexico_City", colombia: "America/Bogota", peru: "America/Lima",
+  uruguay: "America/Montevideo", venezuela: "America/Caracas", ecuador: "America/Guayaquil", bolivia: "America/La_Paz", paraguay: "America/Asuncion",
+  cuba: "America/Havana", brasil: "America/Sao_Paulo", "nueva york": "America/New_York", londres: "Europe/London", "estados unidos": "America/New_York",
+};
+const fShort = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const dayText = (key) => fShort.format(new Date(key + "T12:00:00Z"));
 
 const TZ = "Europe/Stockholm";
 const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
@@ -33,6 +45,7 @@ function clean(q) {
   return s;
 }
 const words = (q) => q.split(" ").length;
+const ORIGINAL = { text: "" }; // la frase original de la petición en curso
 const fDate = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
 const WX = /\b(tiempo|clima|temperatura|grados|frio|calor|abrigo)\b/;
 const WET = /\b(llover|llovera|llueve|lluvia|nevar|nevara|nieva|nieve|paraguas)\b/;
@@ -126,6 +139,31 @@ const INTENTS = [
     },
   },
 
+  // ---------- recordatorio semanal o diario: "recuérdame cada lunes a las 8 sacar el cartón" ----------
+  {
+    re: /^(?:recuerdame|recuerdanos|avisame|avisanos)(?: que)? (?:todos los dias|cada dia|cada (lunes|martes|miercoles|jueves|viernes|sabado|domingo)|todos los (lunes|martes|miercoles|jueves|viernes|sabados|domingos)) a las (\d{1,2})(?:(?::| )(\d{2})| y (media|cuarto))?(?: (?:de la|por la) (manana|tarde|noche))? (?:que |de |para )?(.{2,120})$/,
+    run: async (m, env, changed) => {
+      const [, wd1, wd2, hh, mm, frac, part, text] = m;
+      let h = Number(hh);
+      const min = mm ? Number(mm) : frac === "media" ? 30 : frac === "cuarto" ? 15 : 0;
+      if (h > 23 || min > 59) return null;
+      if ((part === "tarde" || part === "noche") && h < 12) h += 12;
+      const wd = wd1 || (wd2 || "").replace(/(sabado|domingo)s$/, "$1");
+      const today = P.todayKey();
+      const time = String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+      let date = today;
+      if (wd) {
+        const target = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"].indexOf(wd);
+        date = P.addDays(today, (target - new Date(today + "T12:00:00Z").getUTCDay() + 7) % 7);
+      }
+      let at = P.stockholmToMs(date, time);
+      if (at < Date.now()) at = P.stockholmToMs(P.addDays(date, wd ? 7 : 1), time);
+      const r = await P.addReminder(env, { text: originalTail(ORIGINAL.text, text), at, repeat: { unit: wd ? "week" : "day", every: 1 } });
+      changed.home = true;
+      return `Hecho: ${wd ? `cada ${wd}` : "cada día"} a las ${time} te recordaré ${r.text}. La primera vez, el ${P.whenText(r.at)}.`;
+    },
+  },
+
   // ---------- recordatorio con hora: "recuérdame mañana a las 6 de la tarde sacar la basura" ----------
   {
     re: /^(?:recuerdame|recuerdanos|avisame|avisanos)(?: que)? (?:(hoy|manana|pasado manana|el (lunes|martes|miercoles|jueves|viernes|sabado|domingo)) )?a las (\d{1,2})(?:(?::| )(\d{2})| y (media|cuarto))?(?: (?:de la|por la) (manana|tarde|noche))? (?:que |de |para )?(.{2,120})$/,
@@ -152,9 +190,94 @@ const INTENTS = [
         else if (!when) at = P.stockholmToMs(P.addDays(date, 1), time);
         else return null;
       }
-      const r = await P.addReminder(env, { text, at });
+      const r = await P.addReminder(env, { text: originalTail(ORIGINAL.text, text), at });
       changed.home = true;
       return `Vale, te lo recuerdo el ${P.whenText(r.at)}: ${r.text}.`;
+    },
+  },
+
+  // ---------- menú ----------
+  {
+    re: /^(que (cenamos|comemos|hay de cena|hay para cenar|toca de cena)( hoy| esta noche| manana)?|que hay (de|para) (cenar|cena)( hoy| manana)?|(el )?menu( de)?( hoy| manana| la semana| esta semana)?)$/,
+    run: async (m, env) => {
+      const q = m[0];
+      const menu = await L.getMenu(env, 7);
+      if (/semana/.test(q)) {
+        const set = menu.filter((d) => d.meal);
+        if (!set.length) return "El menú de la semana está vacío. Podéis rellenarlo en el panel, en Menú, o pedirme que lo planifique.";
+        return "Menú: " + set.map((d) => `${d === menu[0] ? "hoy" : dayText(d.date).split(",")[0]}, ${d.meal}`).join("; ") + ".";
+      }
+      const d = /manana/.test(q) ? menu[1] : menu[0];
+      const when = /manana/.test(q) ? "Mañana" : "Hoy";
+      return d && d.meal ? `${when} toca ${d.meal}.` : `${when} no hay nada en el menú.`;
+    },
+  },
+
+  // ---------- plantas ----------
+  {
+    re: /^(ya )?(he |hemos )?(regado|regue|regamos) (las |los )?(plantas|maceteros|flores)$|^(plantas regadas)$/,
+    run: async (m, env, changed) => {
+      const list = await L.listPlants(env);
+      if (!list.length) return null;
+      const out = await L.waterPlant(env, "");
+      changed.home = true;
+      return `¡Bien! Próximo riego: ${dayText(out[0].due)}.`;
+    },
+  },
+  {
+    re: /^(cuando (toca|hay que|tengo que|tenemos que) regar( las plantas)?|hay que regar( las plantas)?( hoy)?|toca regar( hoy)?|(las )?plantas)$/,
+    run: async (m, env) => {
+      const list = await L.listPlants(env);
+      if (!list.length) return null;
+      return list.map((p) => p.pending ? `Hay que regar ${L.plantPhrase(p.name)}${p.late ? `: lleva ${p.late} ${p.late === 1 ? "día" : "días"} de retraso` : " hoy"}.`
+        : `El próximo riego de ${L.plantPhrase(p.name)} es el ${dayText(p.due)}.`).join(" ");
+    },
+  },
+
+  // ---------- aurora, polen, aire ----------
+  {
+    re: /^((hay|habra|se vera|se veran|se ven|veremos) )?(auroras?|aurora boreal|auroras boreales)( esta noche| hoy)?$/,
+    run: async (m, env) => {
+      const a = await getAurora(env);
+      if (!a || a.kp == null) return "No tengo la previsión de auroras ahora mismo.";
+      if (a.chance === "alta") return `¡Buena noche para auroras! Actividad alta (Kp ${String(a.kp).replace(".", ",")}) hacia las ${a.when}${a.clouds != null ? `, con un ${a.clouds} % de nubes` : ""}. Mirad al norte, lejos de las luces.`;
+      if (a.chance === "posible") return `Puede que se vean auroras bajas hacia el norte, sobre las ${a.when} (Kp ${String(a.kp).replace(".", ",")}).`;
+      return `Esta noche es poco probable: actividad baja (Kp ${String(a.kp).replace(".", ",")})${a.clouds != null && a.clouds >= 70 ? " y además muy nublado" : ""}.`;
+    },
+  },
+  {
+    test: (q) => /\b(polen|alergia|alergias|calidad del aire|indice uv|rayos uv|uv)\b/.test(q) && words(q) <= 9,
+    run: async (m, env) => {
+      const a = await getAir(env);
+      const parts = [];
+      parts.push(a.pollen.length ? `Polen hoy: ${a.pollen.map((p) => `${p.name} ${p.level}`).join(", ")}.` : "Hoy apenas hay polen.");
+      if (a.aqiText) parts.push(`La calidad del aire es ${a.aqiText}.`);
+      if (a.uvMax >= 3) parts.push(`Índice UV máximo ${String(a.uvMax).replace(".", ",")}${a.uvMax >= 6 ? ": usad protector solar" : ""}.`);
+      return parts.join(" ");
+    },
+  },
+
+  // ---------- hora en otro país ----------
+  {
+    re: /^(que hora es|que horas son|la hora) en (.{3,30})$/,
+    run: async (m, env) => {
+      const place = m[2].replace(/^(el |la |los )/, "").trim();
+      const abroad = await L.getAbroad(env);
+      const mine = abroad.find((x) => x.name.toLowerCase().includes(place));
+      const tz = mine ? mine.tz : ZONES[place];
+      if (!tz) return null;
+      const t = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
+      return `En ${mine ? mine.name : place.charAt(0).toUpperCase() + place.slice(1)} son las ${t}.`;
+    },
+  },
+
+  // ---------- festivos ----------
+  {
+    re: /^(cuando es el proximo festivo|(hay )?(algun )?festivo( esta semana| pronto)?|proximo festivo|cual es el proximo (festivo|dia festivo))$/,
+    run: async () => {
+      const t = P.todayKey(), y = Number(t.slice(0, 4));
+      const next = [...L.holidaysOf(y), ...L.holidaysOf(y + 1)].filter((h) => h.red && h.date >= t).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+      return next ? `El próximo festivo es ${next.name}, el ${dayText(next.date)}.` : null;
     },
   },
 
@@ -250,9 +373,18 @@ function sayDuration(s) {
   return parts.join(" y ");
 }
 
+// El final de la frase tal como se dijo (con tildes y mayúsculas), p. ej. el texto de un recordatorio
+function originalTail(question, cleanedTail) {
+  const n = cleanedTail.trim().split(/\s+/).length;
+  const words = String(question).replace(/[¿?¡!.,;]+$/g, "").trim().split(/\s+/);
+  const tail = words.slice(-n).join(" ").replace(/[¿?¡!.]+$/g, "");
+  return tail.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[¿?¡!.,;:]/g, "") === cleanedTail.trim() ? tail : cleanedTail;
+}
+
 export async function quickAnswer(env, question, changed) {
   if (question.length > 90) return null;
   const q = clean(question);
+  ORIGINAL.text = question;
   for (const it of INTENTS) {
     const m = it.re ? q.match(it.re) : it.test(q) ? [q] : null;
     if (!m) continue;

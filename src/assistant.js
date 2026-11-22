@@ -8,6 +8,7 @@ import { googleConfigured, calendarsConfig } from "./google.js";
 import { listAlarms, createAlarm, updateAlarm, deleteAlarm } from "./alarms.js";
 import * as H from "./household.js";
 import * as P from "./planner.js";
+import * as L from "./life.js";
 import { getWeeklyBriefing } from "./weekly.js";
 import { householdContext, getBriefing, planCheapPower, runRoutine } from "./extras.js";
 
@@ -20,7 +21,7 @@ const ROUTINES = [
   { name: "llegar", re: new RegExp(LEAD + String.raw`(?:ya\s+)?(?:he llegado|hemos llegado|llegue|llegamos|estoy en casa|estamos en casa)(?:\s+a casa)?(?:[\s,]+nexus)?[\s.!,]*$`, "i") },
 ];
 const WEEKLY = /\b(resumen|que (hay|tenemos|tengo)|como (viene|va)|plan(es)?)\b.*\b(semana|semanal)\b|\bresumen semanal\b/i;
-const SUMMARY = /\b(resumen|res[uú]me(me|lo)?|ponme al d[ií]a|c[oó]mo (viene|va|est[aá]) (el|mi|hoy|el d[ií]a)|qu[eé] (hay|tengo) (para )?hoy|novedades)\b/i;
+const SUMMARY = /\b(resumen|res[uú]me(me|lo)?|ponme al d[ií]a|c[oó]mo (viene|va|est[aá]) (el d[ií]a|mi d[ií]a|hoy)|qu[eé] (hay|tengo) (para )?hoy|novedades)\b/i;
 import { getDevices, controlDevice, listDeviceConfig } from "./devices.js";
 import { quickAnswer } from "./quick.js";
 import { config } from "./config.js";
@@ -64,6 +65,10 @@ Herramientas:
 - Precio de la luz: en los datos actuales viene el spot y el precio real (con red, impuesto e IVA) y el contrato. "Avísame cuando la luz esté barata para la lavadora": avisar_luz_barata.
 - Cumpleaños y aniversarios: guardar_fecha / borrar_fecha / ver_fechas. Las próximas vienen en los datos actuales.
 - Recordatorios con día y hora ("recuérdame el jueves a las 18 sacar la basura"): crear_recordatorio con fecha y hora exactas calculadas desde la fecha actual; ver_recordatorios; borrar_recordatorio. Para "en 10 minutos" usa un temporizador.
+- Recordatorios que se repiten ("cada lunes a las 8", "cada día 25"): crear_recordatorio con repetir (unidad dia/semana/mes y cada N); la fecha es la primera vez.
+- Menú de la semana: ver_menu, poner_menu (una llamada por día; añade ingredientes si los sabes), menu_a_compra para pasar los ingredientes a la lista.
+- Cocinar: "vamos a cocinar X" o "cocinemos lo del menú" → mostrar_receta con pasos cortos y claros (y minutos si hay espera). Luego responde solo con el primer paso.
+- Plantas: ver_plantas / regar_plantas ("ya regué las plantas"). Colegio: ver_colegio. Vacaciones: modo_vacaciones con fechas, o quitar_vacaciones al volver.
 - Tareas de la casa con turnos (regar plantas cada 3 días, le toca a…): ver_tareas, crear_tarea, tarea_hecha ("ya regué las plantas"), borrar_tarea.
 - Avisos de SMHI vienen en los datos actuales.`;
 
@@ -199,9 +204,74 @@ function buildTools(env, changed) {
       run: () => H.upcomingDates(env, 366),
     },
     crear_recordatorio: {
-      description: "Crea un recordatorio que suena en el panel a una fecha y hora concretas (hora de Suecia).",
-      parameters: S({ texto: { type: "string", description: "Qué recordar, corto, p. ej. 'sacar la basura'" }, fecha: DATE, hora: TIME, persona: { type: "string", description: "Para quién (opcional)" } }, ["texto", "fecha", "hora"]),
-      run: async (a) => { const r = await P.addReminder(env, { text: a.texto, date: a.fecha, time: a.hora, who: a.persona }); changed.home = true; return { creado: { texto: r.text, cuando: P.whenText(r.at) } }; },
+      description: "Crea un recordatorio que suena en el panel a una fecha y hora concretas (hora de Suecia). Puede repetirse.",
+      parameters: S({
+        texto: { type: "string", description: "Qué recordar, corto, p. ej. 'sacar la basura'" }, fecha: DATE, hora: TIME,
+        persona: { type: "string", description: "Para quién (opcional)" },
+        repetir: { type: "object", description: "Opcional: se repite", properties: { unidad: { type: "string", enum: ["dia", "semana", "mes"] }, cada: { type: "integer", minimum: 1, maximum: 52 } } },
+      }, ["texto", "fecha", "hora"]),
+      run: async (a) => { const r = await P.addReminder(env, { text: a.texto, date: a.fecha, time: a.hora, who: a.persona, repeat: a.repetir }); changed.home = true; return { creado: { texto: r.text, cuando: P.whenText(r.at), repite: P.repeatText(r.repeat) || "no" } }; },
+    },
+    ver_menu: {
+      description: "Menú de cenas de los próximos 7 días (fecha, comida, ingredientes).",
+      parameters: S({}),
+      run: () => L.getMenu(env, 7),
+    },
+    poner_menu: {
+      description: "Pone (o cambia) la comida de un día del menú. Comida vacía la quita.",
+      parameters: S({ fecha: DATE, comida: { type: "string" }, ingredientes: { type: "array", items: { type: "string" } } }, ["fecha", "comida"]),
+      run: async (a) => { await L.setMenu(env, a.fecha, { meal: a.comida, ingredients: a.ingredientes }); changed.home = true; return { guardado: true }; },
+    },
+    menu_a_compra: {
+      description: "Añade a la lista de la compra los ingredientes del menú entre dos fechas que aún no estén en la lista.",
+      parameters: S({ desde: DATE, hasta: DATE }, []),
+      run: async (a) => {
+        const want = await L.menuIngredients(env, a.desde, a.hasta);
+        const have = new Set((await H.listShopping(env)).filter((i) => !i.done).map((i) => i.text.toLowerCase()));
+        const add = want.filter((i) => !have.has(i.toLowerCase()));
+        if (add.length) await H.addShopping(env, add);
+        changed.home = true;
+        return { anadidos: add };
+      },
+    },
+    mostrar_receta: {
+      description: "Abre el modo cocina en el panel con una receta paso a paso. Pasos cortos (una acción cada uno), en español, para la familia.",
+      parameters: S({
+        titulo: { type: "string" }, personas: { type: "integer" },
+        ingredientes: { type: "array", items: { type: "string" }, description: "Con cantidades" },
+        pasos: { type: "array", items: { type: "object", properties: { texto: { type: "string" }, minutos: { type: "integer", description: "Si hay que esperar (horno, cocción); si no, 0" } }, required: ["texto"] } },
+      }, ["titulo", "pasos"]),
+      run: async (a) => {
+        const steps = (a.pasos || []).slice(0, 25).map((x) => ({ text: String(x.texto || "").slice(0, 300), minutes: Math.max(0, Math.round(Number(x.minutos) || 0)) })).filter((x) => x.text);
+        if (!steps.length) return { error: "Faltan los pasos" };
+        changed.cook = { start: { title: String(a.titulo).slice(0, 80), servings: a.personas || null, ingredients: (a.ingredientes || []).slice(0, 30).map(String), steps } };
+        return { abierta: true, pasos: steps.length, primer_paso: steps[0].text };
+      },
+    },
+    ver_plantas: {
+      description: "Estado del riego de las plantas: si toca hoy, si está atrasado y cuándo es el próximo.",
+      parameters: S({}),
+      run: async () => (await L.listPlants(env)).map((p) => ({ plantas: p.name, cada_dias: p.every, toca_ahora: p.pending, dias_de_retraso: p.late, proximo_riego: p.due })),
+    },
+    regar_plantas: {
+      description: "Marca las plantas como regadas hoy.",
+      parameters: S({ cuales: { type: "string", description: "Nombre del grupo si hay varios (opcional)" } }, []),
+      run: async (a) => { const l = await L.waterPlant(env, a.cuales || ""); changed.home = true; return { regadas: true, proximo_riego: l.map((p) => ({ plantas: p.name, fecha: p.due })) }; },
+    },
+    ver_colegio: {
+      description: "Horario del colegio de hoy y mañana y qué hay que llevar.",
+      parameters: S({}),
+      run: async () => (await L.schoolSummary(env)) || { sin_configurar: true },
+    },
+    modo_vacaciones: {
+      description: "Activa el modo vacaciones entre dos fechas: el panel se atenúa, las alarmas no suenan y no hay resúmenes.",
+      parameters: S({ desde: DATE, hasta: DATE }, ["desde", "hasta"]),
+      run: async (a) => { const v = await L.setVacation(env, { from: a.desde, to: a.hasta }); changed.home = true; return { vacaciones: v }; },
+    },
+    quitar_vacaciones: {
+      description: "Quita el modo vacaciones (ya volvieron o se cancela el viaje).",
+      parameters: S({}),
+      run: async () => { await L.setVacation(env, {}); changed.home = true; return { quitado: true }; },
     },
     ver_recordatorios: {
       description: "Lista los recordatorios pendientes con su fecha y hora.",
@@ -332,7 +402,16 @@ function neuronsOf(model, usage) {
 }
 
 // history: [{ role: "user"|"assistant", text }]
-export async function askAssistant(env, { text, history = [] }) {
+const COOK_CMDS = [
+  ["next", /^(siguiente( paso)?|el siguiente|y ahora(\s+que)?|ya esta|listo|hecho|vale siguiente|continua|adelante|sigue)$/],
+  ["prev", /^(anterior|paso anterior|atras|vuelve( atras)?|el anterior)$/],
+  ["repeat", /^(repite(lo)?|otra vez|que\s+(has dicho|dijiste)|no te (he )?oido|como\s+era)$/],
+  ["timer", /^(pon(me)?( el| un)? temporizador|temporizador|avisame cuando (este|termine))$/],
+  ["ingredients", /^(ingredientes|que (necesito|hace falta)|lee(me)? los ingredientes)$/],
+  ["end", /^(termina(r)?|salir|cierra( la receta)?|ya (hemos )?terminado|fin|terminamos)$/],
+];
+
+export async function askAssistant(env, { text, history = [], cooking = false }) {
   const question = String(text || "").trim().slice(0, 2000);
   if (!question) throw new Error("No se recibió ninguna pregunta");
 
@@ -341,6 +420,11 @@ export async function askAssistant(env, { text, history = [] }) {
 
   // Sin tildes: Whisper a veces las pone y a veces no
   const plain = question.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (cooking) {
+    const c = plain.toLowerCase().replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim().replace(/^(oye |vale |bueno |nexus )+/, "").replace(/ nexus$/, "");
+    const hit = COOK_CMDS.find(([, re]) => re.test(c));
+    if (hit) { changed.cook = hit[0]; return { reply: "", changed, model: "cocina", neurons: 0 }; }
+  }
   const routine = ROUTINES.find((r) => r.re.test(plain));
   if (routine) {
     const r = await runRoutine(env, routine.name);

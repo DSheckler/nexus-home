@@ -131,6 +131,8 @@
       data.shopping, (data.garbage || [])[0], new Date().toDateString(),
       data.powerMonth && data.powerMonth.current && data.powerMonth.current.kr,
       data.reminders, data.chores, data.power && data.power.hourlyContract,
+      data.plants, data.menu, data.school, data.aurora && [data.aurora.chance, data.aurora.when], data.air, data.season,
+      data.settings && data.settings.vacation, data.abroad, hourNow(),
     ]);
   }
 
@@ -171,6 +173,7 @@
       chips.push(chip("date", "cake", (d.inDays === 0 ? "Hoy: " : "Mañana: ") + kind + d.name + (d.age ? ` (${d.age})` : ""), () => N.toast(d.title)));
     }
     chips.push(...chorePills());
+    chips.push(...extraPills());
     const pp = powerPill();
     if (pp) chips.push(pp);
     const g = (data.garbage || [])[0];
@@ -180,17 +183,18 @@
     }
 
     // ---- tres tarjetas fijas ----
-    const tiles = [notesTile(), shopTile(), data.power ? powerCard(data.power) : emptyTile("bolt", "Luz ahora", "Sin datos del precio")];
+    const tiles = [notesTile(), shopTile(), data.power ? powerCard(data.power) : emptyTile("bolt", "Luz ahora", "Sin datos del precio"), plantsTile()].filter(Boolean);
 
     $("pills").replaceChildren(...chips);
-    box.replaceChildren(N.h("div", { class: "tiles" }, ...tiles));
+    box.replaceChildren(N.h("div", { class: "tiles" + (tiles.length === 4 ? " four" : "") }, ...tiles));
+    renderAbroad();
     fitChips();
     startTick();
     refreshNotesSheet();
   }
 
   function chip(cls, icon, text, onclick) {
-    return N.h("button", { class: "pill " + cls, type: "button", onclick }, N.h("span", { class: "ic", html: N.ICON[icon] }), text);
+    return N.h("button", { class: "pill " + cls, type: "button", onclick, title: text || null }, N.h("span", { class: "ic", html: N.ICON[icon] }), text ? N.h("span", { class: "pill-t" }, text) : null);
   }
   // Toque doble para acciones que borran algo
   function armTap(el, hint, run) {
@@ -338,10 +342,11 @@
   const remRung = new Set();
   function checkReminders(now) {
     for (const r of data.reminders || []) {
-      if (r.at > now || remRung.has(r.id) || r.at < now - 10 * 60000) continue;
-      remRung.add(r.id);
+      const key = r.id + "@" + r.at;
+      if (r.at > now || remRung.has(key) || r.at < now - 10 * 60000) continue;
+      remRung.add(key);
       window.NexusAlarms.ringNow({ id: r.id, kind: "timer", reminder: true, timerLabel: r.text, label: "Recordatorio: " + r.text, routine: false, days: [], enabled: true });
-      removeReminder(r);
+      N.api("/api/reminders/" + r.id + "/fired", { method: "POST" }).then((j) => { data.reminders = j.reminders; render(); }).catch(() => {});
     }
   }
   const remindersToday = (now) => (data.reminders || []).some((r) => dayKey(r.at) === dayKey(now) && r.at > now - 10 * 60000);
@@ -427,6 +432,246 @@
           N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/guests/" + j.guest.id, { method: "DELETE" }).catch(() => {}); N.toast("Enlace de invitado anulado"); closeSheet(); } }, "Anular ya"),
           N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/guests/" + j.guest.id, { method: "DELETE" }).catch(() => {}); openGuest(24 * 7); } }, "Mejor 7 días")));
     } catch (err) { N.toast(err.message || "No se pudo crear el enlace"); closeSheet(); }
+  }
+
+  // ---------- plantas ----------
+  const fDayShort = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const shortDay = (key) => fDayShort.format(new Date(key + "T12:00:00Z")).replace(/\.$/, "");
+  const WEEKDAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  function plantsTile() {
+    const list = data.plants || [];
+    if (!list.length) return null;
+    const p = list.find((x) => x.pending) || list[0];
+    const big = p.pending ? (p.late ? `Hace ${p.late} d` : "¡Hoy!") : p.dueIn === 1 ? "Mañana" : `En ${p.dueIn} d`;
+    const sub = p.pending ? "2 toques: regadas" : `Próximo: ${shortDay(p.due)}`;
+    const c = card("plants" + (p.pending ? " due" : ""), list.length > 1 ? "Plantas" : p.name,
+      N.h("span", { class: "card-b" }, N.h("span", { class: "card-v" }, big), N.h("span", { class: "card-s" }, sub)), null, "plant");
+    if (p.pending) armTap(c, "Toca otra vez para marcarlas regadas", () => waterPlants(p));
+    else c.addEventListener("click", openPlants);
+    return c;
+  }
+  async function waterPlants(p) {
+    try {
+      const j = await N.api("/api/plants/" + p.id + "/water", { method: "POST" });
+      data.plants = j.plants; render();
+      const n = j.plants.find((x) => x.id === p.id);
+      N.toast(`¡Regadas! Próximo riego: ${n ? shortDay(n.due) : ""}`);
+      if (sheet && sheet.dataset.kind === "plants") openPlants();
+    } catch (e) { N.toast(e.message); }
+  }
+  function openPlants() {
+    const list = data.plants || [];
+    const rows = list.map((p) => {
+      const every = N.h("select", { class: "ed-input pw-sel", "aria-label": "Cada cuánto" },
+        ...[[7, "Cada semana"], [14, "Cada 2 semanas"], [21, "Cada 3 semanas"], [28, "Cada 4 semanas"], [3, "Cada 3 días"]].map(([v, t]) => N.h("option", { value: v, selected: v === p.every ? true : null }, t)));
+      const wd = N.h("select", { class: "ed-input pw-sel", "aria-label": "Día" },
+        ...WEEKDAYS.map((d, i) => N.h("option", { value: i, selected: new Date(p.anchor + "T12:00:00Z").getUTCDay() === i ? true : null }, d)));
+      const save = async () => {
+        try {
+          // Mantener el ciclo: si no cambia el día de la semana, se conserva la fecha de referencia
+          const sameDay = new Date(p.anchor + "T12:00:00Z").getUTCDay() === Number(wd.value);
+          const j = await N.api("/api/plants", { method: "PUT", body: { id: p.id, name: p.name, every: Number(every.value), ...(sameDay ? { anchor: p.anchor } : { weekday: Number(wd.value) }) } });
+          data.plants = j.plants; render(); openPlants();
+        } catch (e) { N.toast(e.message); }
+      };
+      every.addEventListener("change", save); wd.addEventListener("change", save);
+      return N.h("li", { class: "note-row" + (p.pending ? " due" : "") },
+        N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, p.name),
+          N.h("span", { class: "note-meta" }, p.pending ? (p.late ? `Atrasado ${p.late} días` : "Toca regar hoy") : `Próximo riego: ${shortDay(p.due)}` + (p.last ? ` · última vez ${shortDay(p.last)}` : ""))),
+        every, wd,
+        N.h("button", { class: "btn primary", type: "button", onclick: () => waterPlants(p) }, "Regadas"));
+    });
+    const name = N.h("input", { class: "ed-input", type: "text", maxlength: "30", placeholder: "Otro grupo (p. ej. plantas del balcón)", "aria-label": "Nombre" });
+    const form = N.h("form", { class: "list-add" }, name, N.h("button", { class: "btn", type: "submit" }, "Añadir"));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!name.value.trim()) return;
+      const j = await N.api("/api/plants", { method: "PUT", body: { name: name.value.trim(), every: 14, weekday: 0 } }).catch((err) => { N.toast(err.message); return null; });
+      if (j) { data.plants = j.plants; render(); openPlants(); }
+    });
+    openSheet("Plantas",
+      N.h("p", { class: "sheet-sub" }, "Se riegan en días fijos. Al regarlas, toca «Regadas» (o di «Oye NEXUS, ya regué las plantas»)."),
+      rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "empty" }, "No hay plantas apuntadas."),
+      form);
+    sheet.dataset.kind = "plants";
+  }
+
+  // ---------- avisos nuevos de la franja ----------
+  const hourNow = () => Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/Stockholm" }).format(new Date()));
+  function extraPills() {
+    const out = [];
+    const h = hourNow();
+    // Aurora boreal (por la tarde-noche)
+    const a = data.aurora;
+    if (a && a.chance && (h >= 16 || h < 3)) out.push(chip("aurora", "aurora", a.chance === "alta" ? `Auroras posibles esta noche (${a.when})` : `Quizá auroras hacia el norte`, () => N.toast(`Actividad Kp ${String(a.kp).replace(".", ",")}${a.clouds != null ? `, ${a.clouds} % de nubes` : ""}. Mirad al norte, lejos de las luces.`)));
+    // Colegio: por la mañana lo de hoy; por la tarde lo de mañana
+    const sc = data.school;
+    if (sc) {
+      const d = h < 10 ? sc.today : h >= 16 ? sc.tomorrow : null;
+      if (d && d.bring && d.bring.length) out.push(chip("school", "school", `${h >= 16 ? "Mañana " : ""}${sc.name || "Colegio"}: ${d.bring.join(", ")}`, () => N.toast((d.start ? `Entra a las ${d.start}` : "") + (d.end ? `, sale a las ${d.end}` : ""))));
+    }
+    // Cena de hoy (por la tarde)
+    const m = data.menu && data.menu[0];
+    if (m && m.meal && h >= 14 && h < 21) out.push(chip("menu", "menu", `Cena: ${m.meal}`, () => openMenu()));
+    // Polen, aire y UV (de día)
+    const air = data.air;
+    if (air && h >= 6 && h < 21) {
+      const high = (air.pollen || []).filter((p) => p.level === "alto");
+      if (high.length) out.push(chip("air", "leaf", `Polen alto: ${high.map((p) => p.name).join(", ")}`, () => N.toast((air.pollen || []).map((p) => `${p.name}: ${p.level}`).join(" · "))));
+      if (air.uvMax >= 6 && h < 17) out.push(chip("air uv", "sun", `UV ${String(air.uvMax).replace(".", ",")}: protector solar`, null));
+      if (air.aqi != null && air.aqi > 60) out.push(chip("air bad", "leaf", `Aire ${air.aqiText}`, null));
+    }
+    // Festivos (hoy y mañana) y consejos de temporada
+    for (const n of data.season || []) {
+      if (n.kind === "holiday" && n.inDays <= 1) out.push(chip("holiday", "flag", (n.inDays === 0 ? "Hoy: " : "Mañana: ") + n.text, null));
+      if (n.kind === "tip") out.push(chip("tip", "info", n.text.split(":")[0], () => N.toast(n.text)));
+    }
+    // Vacaciones: la víspera, la lista de antes de salir
+    const v = data.settings && data.settings.vacation;
+    if (v && v.from === dayKey(Date.now() + 86400000)) out.push(chip("vacation", "flag", "Mañana os vais: lista de salida", () => openVacation()));
+    return out;
+  }
+
+  // ---------- menú de la semana ----------
+  function openMenu() {
+    const list = (data.menuWeek || data.menu || []);
+    const rows = list.map((d, i) => {
+      const meal = N.h("input", { class: "ed-input", type: "text", maxlength: "80", value: d.meal || "", placeholder: "¿Qué cenamos?", "aria-label": "Cena" });
+      const ing = N.h("input", { class: "ed-input ing", type: "text", maxlength: "300", value: (d.ingredients || []).join(", "), placeholder: "Ingredientes, separados por comas", "aria-label": "Ingredientes" });
+      const save = async () => {
+        try { const j = await N.api("/api/menu/" + d.date, { method: "PUT", body: { meal: meal.value, ingredients: ing.value } }); data.menuWeek = j.menu; data.menu = j.menu.slice(0, 2); render(); }
+        catch (e) { N.toast(e.message); }
+      };
+      meal.addEventListener("change", save); ing.addEventListener("change", save);
+      const cook = N.h("button", { class: "btn ghost", type: "button", title: "Cocinar paso a paso", onclick: () => {
+        if (!meal.value.trim()) return N.toast("Primero escribe qué se cena ese día");
+        closeSheet();
+        if (window.NexusVoice) window.NexusVoice.ask(`Vamos a cocinar ${meal.value.trim()}` + (ing.value.trim() ? ` con ${ing.value.trim()}` : ""));
+      } }, "Cocinar");
+      return N.h("li", { class: "menu-row" + (i === 0 ? " today" : "") },
+        N.h("span", { class: "menu-day" }, i === 0 ? "Hoy" : i === 1 ? "Mañana" : shortDay(d.date)),
+        N.h("span", { class: "menu-fields" }, meal, ing), cook);
+    });
+    openSheet("Menú de la semana",
+      N.h("p", { class: "sheet-sub" }, "Se guarda al escribir. También por voz: «Oye NEXUS, planifica el menú de la semana» o «¿qué cenamos hoy?»."),
+      N.h("ul", { class: "menu-list" }, ...rows),
+      N.h("div", { class: "sheet-foot" },
+        N.h("button", { class: "btn primary", type: "button", onclick: async () => {
+          const j = await N.api("/api/menu/shop", { method: "POST", body: {} }).catch((e) => { N.toast(e.message); return null; });
+          if (j) { data.shopping = j.items; render(); N.toast(j.added.length ? `Añadido a la compra: ${j.added.join(", ")}` : "Ya estaba todo en la lista"); }
+        } }, "Pasar ingredientes a la compra"), N.h("span")));
+    sheet.dataset.kind = "menu";
+  }
+  async function openMenuFresh() {
+    const j = await N.api("/api/menu").catch(() => null);
+    if (j) data.menuWeek = j.menu;
+    openMenu();
+  }
+
+  // ---------- colegio ----------
+  async function openSchool() {
+    const j = await N.api("/api/school").catch(() => null);
+    const s = (j && j.school) || { name: "", days: {} };
+    const name = N.h("input", { class: "ed-input", type: "text", maxlength: "30", value: s.name || "", placeholder: "Nombre (p. ej. Quimey)", "aria-label": "Nombre" });
+    const DAYS = [["1", "Lunes"], ["2", "Martes"], ["3", "Miércoles"], ["4", "Jueves"], ["5", "Viernes"]];
+    const fields = DAYS.map(([k, label]) => {
+      const d = s.days[k] || {};
+      const st = N.h("input", { class: "ed-input t", type: "time", value: d.start || "", "aria-label": label + " entrada" });
+      const en = N.h("input", { class: "ed-input t", type: "time", value: d.end || "", "aria-label": label + " salida" });
+      const br = N.h("input", { class: "ed-input", type: "text", maxlength: "200", value: (d.bring || []).join(", "), placeholder: "Qué llevar (p. ej. ropa de deporte)", "aria-label": label + " llevar" });
+      return { k, st, en, br, row: N.h("li", { class: "school-row" }, N.h("span", { class: "menu-day" }, label), st, en, br) };
+    });
+    const saveBtn = N.h("button", { class: "btn primary", type: "button", onclick: async () => {
+      const days = {};
+      for (const f of fields) days[f.k] = { start: f.st.value, end: f.en.value, bring: f.br.value };
+      try { await N.api("/api/school", { method: "PUT", body: { name: name.value, days } }); N.toast("Horario guardado"); closeSheet(); refresh(); }
+      catch (e) { N.toast(e.message); }
+    } }, "Guardar");
+    openSheet("Colegio",
+      N.h("p", { class: "sheet-sub" }, "Por la mañana sale lo que hay que llevar hoy y por la tarde lo de mañana. Los festivos no cuentan."),
+      N.h("div", { class: "list-add" }, name),
+      N.h("ul", { class: "menu-list" }, ...fields.map((f) => f.row)),
+      N.h("div", { class: "sheet-foot" }, N.h("span"), saveBtn));
+  }
+
+  // ---------- familia en otro país ----------
+  const ZONES = [["Chile", "America/Santiago"], ["Argentina", "America/Argentina/Buenos_Aires"], ["España", "Europe/Madrid"], ["México", "America/Mexico_City"],
+    ["Colombia", "America/Bogota"], ["Perú", "America/Lima"], ["Uruguay", "America/Montevideo"], ["Venezuela", "America/Caracas"], ["Ecuador", "America/Guayaquil"],
+    ["Bolivia", "America/La_Paz"], ["Paraguay", "America/Asuncion"], ["Brasil", "America/Sao_Paulo"], ["Cuba", "America/Havana"], ["Nueva York", "America/New_York"], ["Londres", "Europe/London"]];
+  const timeIn = (tz) => new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
+  const hourIn = (tz) => Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: tz }).format(new Date()));
+  function renderAbroad() {
+    const box = $("abroad");
+    if (!box) return;
+    const list = (data && data.abroad) || [];
+    box.replaceChildren(...list.map((x) => N.h("button", { class: "abroad", type: "button", onclick: () => {
+      const h = hourIn(x.tz), here = hourNow();
+      const good = h >= 9 && h < 22 && here >= 8 && here < 22;
+      N.toast(`En ${x.name} son las ${timeIn(x.tz)}. ` + (good ? "Buen momento para llamar." : h < 9 || h >= 22 ? "Allí es tarde o muy temprano: mejor más tarde." : "Aquí ya es tarde."));
+    } }, N.h("span", { class: "abroad-n" }, x.name), " ", timeIn(x.tz))));
+  }
+  async function openAbroad() {
+    const list = [...((data && data.abroad) || [])];
+    const draw = () => {
+      const rows = list.map((x, i) => N.h("li", { class: "note-row" },
+        N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, x.name), N.h("span", { class: "note-meta" }, `Allí son las ${timeIn(x.tz)}`)),
+        N.h("button", { class: "btn ghost note-del", type: "button", onclick: () => { list.splice(i, 1); save(); } }, "Quitar")));
+      const name = N.h("input", { class: "ed-input", type: "text", maxlength: "24", placeholder: "Nombre (p. ej. Abuelos)", "aria-label": "Nombre" });
+      const zone = N.h("select", { class: "ed-input pw-sel", "aria-label": "País" }, ...ZONES.map(([n, tz]) => N.h("option", { value: tz }, n)));
+      const form = N.h("form", { class: "list-add" }, name, zone, N.h("button", { class: "btn", type: "submit" }, "Añadir"));
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const label = name.value.trim() || ZONES.find(([, tz]) => tz === zone.value)[0];
+        list.push({ name: label, tz: zone.value }); save();
+      });
+      openSheet("Familia lejos",
+        N.h("p", { class: "sheet-sub" }, "Su hora sale arriba del panel. Tócala para saber si es buen momento para llamar."),
+        rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "empty" }, "Aún no hay ninguna."),
+        list.length < 3 ? form : null);
+    };
+    const save = async () => {
+      try { const j = await N.api("/api/abroad", { method: "PUT", body: { abroad: list } }); data.abroad = j.abroad; renderAbroad(); draw(); }
+      catch (e) { N.toast(e.message); }
+    };
+    draw();
+  }
+
+  // ---------- vacaciones ----------
+  const CHECKLIST = ["Regar las plantas (o pedir a alguien que lo haga)", "Sacar la basura y el reciclaje", "Vaciar la nevera de lo que caduca", "Cerrar ventanas y bajar la calefacción", "Desenchufar lo que no haga falta", "Avisar a un vecino de confianza", "Llevar cargadores, pasaportes y documentos"];
+  const vacationActive = () => {
+    const v = data && data.settings && data.settings.vacation;
+    const t = dayKey(Date.now());
+    return !!(v && t >= v.from && t <= v.to);
+  };
+  function openVacation() {
+    const v = (data.settings && data.settings.vacation) || null;
+    const from = N.h("input", { class: "ed-input t", type: "date", value: v ? v.from : "", "aria-label": "Ida" });
+    const to = N.h("input", { class: "ed-input t", type: "date", value: v ? v.to : "", "aria-label": "Vuelta" });
+    let checked = {};
+    try { checked = JSON.parse(localStorage.getItem("nexus.vaclist") || "{}"); } catch { /* */ }
+    const items = CHECKLIST.map((t, i) => {
+      const cb = N.h("input", { type: "checkbox", checked: checked[i] ? true : null });
+      cb.addEventListener("change", () => { checked[i] = cb.checked; try { localStorage.setItem("nexus.vaclist", JSON.stringify(checked)); } catch { /* */ } });
+      return N.h("li", { class: "vac-item" }, N.h("label", {}, cb, " " + t));
+    });
+    openSheet("Vacaciones",
+      N.h("p", { class: "sheet-sub" }, "Mientras estéis fuera, el panel queda atenuado, las alarmas no suenan y no hay resúmenes hablados."),
+      N.h("div", { class: "list-add" }, N.h("span", { class: "note-meta" }, "Ida"), from, N.h("span", { class: "note-meta" }, "Vuelta"), to),
+      N.h("h3", { class: "pw-h" }, "Antes de salir"),
+      N.h("ul", { class: "vac-list" }, ...items),
+      N.h("div", { class: "sheet-foot" },
+        v ? N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/vacation", { method: "DELETE" }).catch(() => {}); try { localStorage.removeItem("nexus.vaclist"); } catch { /* */ } closeSheet(); refresh(); N.toast("Modo vacaciones quitado"); } }, "Quitar vacaciones") : N.h("span"),
+        N.h("button", { class: "btn primary", type: "button", onclick: async () => {
+          try { await N.api("/api/vacation", { method: "PUT", body: { from: from.value, to: to.value } }); closeSheet(); refresh(); N.toast("Vacaciones guardadas. ¡Buen viaje!"); }
+          catch (e) { N.toast(e.message); }
+        } }, "Guardar")));
+  }
+  function houseExtras() {
+    return N.h("div", { class: "house-extras" },
+      N.h("button", { class: "btn ghost", type: "button", onclick: () => openPlants() }, "Plantas"),
+      N.h("button", { class: "btn ghost", type: "button", onclick: () => openSchool() }, "Colegio"),
+      N.h("button", { class: "btn ghost", type: "button", onclick: () => openAbroad() }, "Familia lejos"),
+      N.h("button", { class: "btn ghost", type: "button", onclick: () => openVacation() }, "Vacaciones"));
   }
 
   // ---------- paneles ----------
@@ -620,7 +865,7 @@
       sheet.firstChild.classList.add("wide");
       body.push(N.h("p", { class: "sheet-sub" }, j && j.devices.length ? "Toca una luz para encenderla o apagarla." : "Plano listo. Las luces aparecerán aquí cuando conectes dispositivos Shelly."));
       body.push(floorPlan(plan, (j && j.devices) || []));
-      sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, guestButton());
+      sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, houseExtras(), guestButton());
       return;
     }
     if (!j) body.push(N.h("p", { class: "empty" }, "No he podido consultar los dispositivos."));
@@ -641,7 +886,7 @@
           sw);
       })));
     }
-    sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, guestButton());
+    sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, houseExtras(), guestButton());
   }
 
   // ---------- notas nuevas: sonido de aviso ----------
@@ -741,6 +986,11 @@
       } else if (m.type === "chores" && Array.isArray(m.chores)) {
         data.chores = m.chores; render();
         if (sheet && sheet.dataset.kind === "chores") openChores();
+      } else if (m.type === "plants" && Array.isArray(m.plants)) {
+        data.plants = m.plants; render();
+        if (sheet && sheet.dataset.kind === "plants") openPlants();
+      } else if (m.type === "menu" && Array.isArray(m.menu)) {
+        data.menuWeek = m.menu; data.menu = m.menu.slice(0, 2); render();
       } else if (m.type === "refresh") {
         refresh();
       } else if (m.type === "powerMonth" && m.powerMonth) {
@@ -772,6 +1022,7 @@
   function init(ctx) {
     N = ctx;
     N.api("/api/config").then((c) => { family = c.family || []; }).catch(() => {});
+    setInterval(renderAbroad, 30 * 1000);
     refresh();
     connectLive();
     setInterval(refresh, REFRESH_MS);
@@ -783,6 +1034,6 @@
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   }
 
-  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, openChores, settings: () => (data && data.settings) || {},
+  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, settings: () => (data && data.settings) || {},
     timers: () => ((data && data.timers) || []).map((t) => ({ ...t, endsAt: t.endsAt + (data.skew || 0) })) };
 })();

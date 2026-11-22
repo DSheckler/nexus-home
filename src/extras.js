@@ -7,6 +7,41 @@ import { getAgenda } from "./calendar.js";
 import { nextPickups, listNotes, listTimers, createTimer, upcomingDates, listShopping, setNightMode } from "./household.js";
 import { listAlarms } from "./alarms.js";
 import { listDeviceConfig, controlDevice } from "./devices.js";
+import * as L from "./life.js";
+import { getAir, getAurora } from "./outdoor.js";
+
+// Lo nuevo de la casa para los resúmenes hablados: plantas, colegio, menú, festivos, polen y auroras
+async function lifeLines(env, { when }) {
+  const safe = (p) => p.catch(() => null);
+  const [plants, school, menu, air, aurora] = await Promise.all([
+    safe(L.listPlants(env)), safe(L.schoolSummary(env)), safe(L.getMenu(env, 2)),
+    when === "morning" ? safe(getAir(env)) : null, when === "evening" ? safe(getAurora(env)) : null,
+  ]);
+  const out = [];
+  const season = L.seasonNotices(1);
+  if (when === "evening") {
+    for (const h of season.filter((x) => x.kind === "holiday" && x.inDays === 1)) out.push(`Mañana es ${h.text}.`);
+    const s = school && school.tomorrow;
+    if (s && s.bring && s.bring.length) out.push(`Para mañana, ${school.name || "el colegio"} tiene que llevar: ${s.bring.join(", ")}.`);
+    if (menu && menu[1] && menu[1].meal) out.push(`Mañana toca cenar ${menu[1].meal}.`);
+    for (const p of plants || []) if (!p.pending && p.dueIn === 1) out.push(`Mañana toca regar ${L.plantPhrase(p.name)}.`);
+    if (aurora && aurora.chance) out.push(aurora.chance === "alta" ? `Esta noche hay buenas opciones de ver auroras hacia las ${aurora.when}: mirad al norte.` : `Esta noche quizá se vean auroras bajas hacia el norte.`);
+    return out;
+  }
+  for (const h of season.filter((x) => x.kind === "holiday" && x.inDays === 0)) out.push(`Hoy es ${h.text}.`);
+  if (when === "morning") for (const t of season.filter((x) => x.kind === "tip" && x.inDays <= 1)) out.push(t.text + ".");
+  for (const p of plants || []) if (p.pending) out.push(p.late ? `Hace ${p.late} días que toca regar ${L.plantPhrase(p.name)}.` : `Hoy toca regar ${L.plantPhrase(p.name)}.`);
+  const s = school && school.today;
+  if (when === "morning" && s) out.push(`${school.name || "Colegio"}: ${s.start ? `entra a las ${s.start}` : "hay colegio"}${s.bring && s.bring.length ? ` y tiene que llevar ${s.bring.join(", ")}` : ""}.`);
+  if (menu && menu[0] && menu[0].meal) out.push(`Para cenar: ${menu[0].meal}.`);
+  if (air) {
+    const high = air.pollen.filter((p) => p.level === "alto");
+    if (high.length) out.push(`Polen alto de ${high.map((p) => p.name).join(" y ")}.`);
+    if (air.uvMax >= 6) out.push(`El índice UV llegará a ${String(air.uvMax).replace(".", ",")}: protector solar.`);
+    if (air.aqi != null && air.aqi > 60) out.push(`La calidad del aire es ${air.aqiText}.`);
+  }
+  return out;
+}
 
 const TZ = "Europe/Stockholm";
 const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
@@ -155,6 +190,7 @@ export async function getBriefing(env, { morning = false } = {}) {
   parts.push(...datesText(dates, false));
   if (pickups && pickups[0] && pickups[0].inDays <= 1) parts.push(`${pickups[0].inDays === 0 ? "Hoy" : "Mañana"} se recoge ${pickups[0].type}.`);
   if (notes && notes.length) parts.push(notes.length === 1 ? `Hay una nota para ${notes[0].to}.` : `Hay ${notes.length} notas en el panel.`);
+  parts.push(...(await lifeLines(env, { when: morning ? "morning" : "day" }).catch(() => [])));
   if (morning) parts.push(...recommendations(w, detail, power));
   else if (power && power.cheapestRest) parts.push(`La luz más barata de hoy será a las ${power.cheapestRest.h}:00.`);
   return parts.join(" ");
@@ -262,6 +298,7 @@ export async function getEveningBriefing(env) {
     if (d.min <= 0) parts.push("Por la mañana hará frío: dejen preparada ropa de abrigo.");
   }
   if (alarm) parts.push(alarm);
+  parts.push(...(await lifeLines(env, { when: "evening" }).catch(() => [])));
   if (power && power.hourlyContract && power.tomorrow && power.tomorrow.length) {
     const c = [...power.tomorrow].sort((a, b) => a.sek - b.sek)[0];
     parts.push(`Mañana la luz más barata será a las ${c.h}:00.`);

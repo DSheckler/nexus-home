@@ -117,7 +117,7 @@
     setState("thinking");
     caption("…", "Pensando…", "hint");
     try {
-      const j = await N.api("/api/voice", { method: "POST", body: { audio: MIC().toWavBase64(frames), history } });
+      const j = await N.api("/api/voice", { method: "POST", body: { audio: MIC().toWavBase64(frames), history, cooking: cooking() } });
       if (!j.text) {
         caption("", "No te he entendido. Repítelo, por favor.", "hint");
         return listen(FOLLOW_NO_SPEECH_MS);
@@ -146,7 +146,7 @@
     caption(text, "Pensando…", "hint");
     setState("thinking");
     try {
-      const j = await N.api("/api/assistant", { method: "POST", body: { text, history } });
+      const j = await N.api("/api/assistant", { method: "POST", body: { text, history, cooking: cooking() } });
       await handleReply(text, j);
     } catch (e) {
       caption(undefined, failText(e, "No he podido responder ahora. Inténtalo de nuevo en un momento."), "error");
@@ -154,7 +154,17 @@
     }
   }
 
+  // Modo cocina abierto: el servidor entiende "siguiente", "repite"… sin gastar IA
+  const cooking = () => !!(window.NexusCook && window.NexusCook.active());
+
   async function handleReply(text, j) {
+    const ck = j.changed && j.changed.cook;
+    if (typeof ck === "string" && window.NexusCook) { // orden de cocina: la receta dice el paso
+      endConversation();
+      window.NexusCook.command(ck);
+      return;
+    }
+    if (ck && ck.start && window.NexusCook) window.NexusCook.start(ck.start, { silent: true });
     history.push({ role: "user", text }, { role: "assistant", text: j.reply });
     history = history.slice(-8);
     lastTurnAt = Date.now();

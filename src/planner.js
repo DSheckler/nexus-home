@@ -34,17 +34,43 @@ export const todayKey = () => fKey.format(new Date());
 export const addDays = (key, n) => new Date(Date.parse(key + "T12:00:00Z") + n * DAY).toISOString().slice(0, 10);
 const daysBetween = (a, b) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / DAY);
 export const whenText = (ms) => fWhen.format(new Date(ms));
+// Instante → { date: "AAAA-MM-DD", time: "HH:MM" } en hora de Suecia
+export function msToStockholm(ms) {
+  const p = Object.fromEntries(fParts.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+}
+const UNITS = { dia: "day", dias: "day", day: "day", semana: "week", semanas: "week", week: "week", mes: "month", meses: "month", month: "month" };
+// Siguiente vez de un recordatorio que se repite (misma hora local, aunque cambie el horario de verano)
+function nextAt(at, rep) {
+  const { date, time } = msToStockholm(at);
+  let d = date;
+  const n = Math.max(1, Math.round(rep.every || 1));
+  if (rep.unit === "month") {
+    const [y, m, dd] = d.split("-").map(Number);
+    const t = new Date(Date.UTC(y, m - 1 + n, 1));
+    const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+    d = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(Math.min(dd, last)).padStart(2, "0")}`;
+  } else d = addDays(d, n * (rep.unit === "week" ? 7 : 1));
+  return stockholmToMs(d, time);
+}
+export function repeatText(rep) {
+  if (!rep) return "";
+  const n = rep.every || 1;
+  if (rep.unit === "day") return n === 1 ? "cada día" : `cada ${n} días`;
+  if (rep.unit === "week") return n === 1 ? "cada semana" : `cada ${n} semanas`;
+  return n === 1 ? "cada mes" : `cada ${n} meses`;
+}
 
 // ---------- recordatorios ----------
 // [{ id, text, at (ms), who }]. Los que ya sonaron se borran desde la tablet; los muy viejos, solos.
 export async function listReminders(env) {
   const all = await getList(env, "reminders");
-  const alive = all.filter((r) => r.at > Date.now() - 2 * DAY);
+  const alive = all.filter((r) => r.repeat || r.at > Date.now() - 2 * DAY);
   if (alive.length !== all.length) await putList(env, "reminders", alive);
   return alive.sort((a, b) => a.at - b.at);
 }
 
-export async function addReminder(env, { text, date, time, at, who }) {
+export async function addReminder(env, { text, date, time, at, who, repeat }) {
   const t = clip(text, 120);
   if (!t) throw new Error("Falta qué recordar");
   let ms = Number(at);
@@ -56,9 +82,30 @@ export async function addReminder(env, { text, date, time, at, who }) {
   if (ms > Date.now() + 366 * DAY) throw new Error("Como máximo, con un año de antelación");
   const list = await listReminders(env);
   if (list.length >= 50) throw new Error("Máximo 50 recordatorios");
-  const r = { id: "r" + uid(), text: t, at: ms, who: clip(who, 30) || null };
+  let rp = null;
+  if (repeat && (repeat.unit || repeat.unidad)) {
+    const unit = UNITS[String(repeat.unit || repeat.unidad).toLowerCase()];
+    const every = Math.round(Number(repeat.every || repeat.cada || 1));
+    if (!unit || !(every >= 1 && every <= 52)) throw new Error("Repetición no válida");
+    rp = { unit, every };
+  }
+  const r = { id: "r" + uid(), text: t, at: ms, who: clip(who, 30) || null, repeat: rp };
   await putList(env, "reminders", [...list, r]);
   return r;
+}
+
+// La tablet avisa de que ya sonó: si se repite, pasa a la siguiente vez; si no, se borra
+export async function reminderFired(env, id) {
+  const list = await listReminders(env);
+  const r = list.find((x) => x.id === id);
+  if (!r) return list;
+  if (r.repeat) {
+    let at = r.at;
+    while (at <= Date.now()) at = nextAt(at, r.repeat);
+    r.at = at;
+    await putList(env, "reminders", list);
+  } else await putList(env, "reminders", list.filter((x) => x !== r));
+  return listReminders(env);
 }
 
 export async function deleteReminder(env, which) {
