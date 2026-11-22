@@ -572,7 +572,7 @@
   async function openSchool() {
     const j = await N.api("/api/school").catch(() => null);
     const s = (j && j.school) || { name: "", days: {} };
-    const name = N.h("input", { class: "ed-input", type: "text", maxlength: "30", value: s.name || "", placeholder: "Nombre (p. ej. Quimey)", "aria-label": "Nombre" });
+    const name = N.h("input", { class: "ed-input", type: "text", maxlength: "30", value: s.name || "", placeholder: "Nombre (p. ej. Sofía)", "aria-label": "Nombre" });
     const DAYS = [["1", "Lunes"], ["2", "Martes"], ["3", "Miércoles"], ["4", "Jueves"], ["5", "Viernes"]];
     const fields = DAYS.map(([k, label]) => {
       const d = s.days[k] || {};
