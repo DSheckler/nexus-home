@@ -15,7 +15,7 @@ const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-dig
 // ---------- Electricidad (elprisetjustnu.se, gratis, sin clave) ----------
 let powerCache = { at: 0, key: "", data: null };
 
-async function pricesFor(key) {
+export async function pricesFor(key) {
   const [y, m, d] = key.split("-");
   const r = await fetch(`https://www.elprisetjustnu.se/api/v1/prices/${y}/${m}-${d}_${config().zone}.json`);
   if (!r.ok) return null; // mañana aún no publicado (sale ~13:00)
@@ -23,7 +23,7 @@ async function pricesFor(key) {
 }
 
 // Agrupa los bloques de 15 min en horas: [{ h: "00", sek }]
-function hourly(entries) {
+export function hourly(entries) {
   const by = new Map();
   for (const e of entries) {
     const h = e.time_start.slice(11, 13);
@@ -37,8 +37,8 @@ function hourly(entries) {
 // Lo que se paga de verdad por kWh además del spot, en öre/kWh CON IVA. El spot (sin IVA) se
 // multiplica por 1,25. La red y el impuesto son iguales a cualquier hora. El contrato de luz
 // cambia por fechas (se elige solo el día que toca). Todo sale de la configuración (src/config.js).
-const VAT = 1.25;
-const contractFor = (key) => {
+export const VAT = 1.25;
+export const contractFor = (key) => {
   const list = [...(config().contracts || [])].sort((a, b) => (a.from < b.from ? -1 : 1));
   return list.filter((c) => c.from <= key).pop() || { ore: 0, name: "Sin contrato configurado", hourly: true };
 };

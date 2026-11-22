@@ -12,11 +12,12 @@ import { getPower, getWarnings, getBriefing, getEveningBriefing } from "./extras
 import { getDevices, controlDevice, setDeviceConfig } from "./devices.js";
 import { loadConfig, config } from "./config.js";
 import { notify } from "./hub.js";
+import { powerMonth, saveReading, deleteReading } from "./consumption.js";
 
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.12.0";
+const VERSION = "1.13.0";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -139,7 +140,7 @@ function scopeOf(request, env) {
   if (env.FAMILY_TOKEN && safeEqual(key, env.FAMILY_TOKEN)) return "family";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio)$/;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?)$/;
 
 // El asistente cambió algo de la casa: los móviles reciben la lista y las notas al momento
 function pushHome(env, ctx) {
@@ -216,7 +217,26 @@ async function handleApi(request, env, url, ctx) {
   }
 
   if (path === "/api/config" && method === "GET") return json({ ok: true, city: config().city, family: config().family });
-  if (path === "/api/home" && method === "GET") return json({ ok: true, ...(await homeSnapshot(env)) });
+  if (path === "/api/home" && method === "GET") {
+    const [home, month] = await Promise.all([homeSnapshot(env), powerMonth(env).catch(() => null)]);
+    return json({ ok: true, ...home, powerMonth: month });
+  }
+
+  // Gasto de luz del mes: estimado del mes en curso y lecturas de la factura (kWh del mes)
+  if (path === "/api/power/month" && method === "GET") return json({ ok: true, ...(await powerMonth(env)) });
+  if (path === "/api/power/readings" && method === "POST") {
+    await saveReading(env, await body(request));
+    const month = await powerMonth(env);
+    notify(env, ctx, { type: "powerMonth", powerMonth: month });
+    return json({ ok: true, ...month });
+  }
+  const mt0 = path.match(/^\/api\/power\/readings\/(\d{4}-\d{2})$/);
+  if (mt0 && method === "DELETE") {
+    await deleteReading(env, mt0[1]);
+    const month = await powerMonth(env);
+    notify(env, ctx, { type: "powerMonth", powerMonth: month });
+    return json({ ok: true, ...month });
+  }
   if (path === "/api/briefing" && method === "GET") return json({ ok: true, text: url.searchParams.get("evening") ? await getEveningBriefing(env) : await getBriefing(env, { morning: !!url.searchParams.get("morning") }) });
 
   // Temporizadores

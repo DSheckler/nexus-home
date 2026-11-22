@@ -47,12 +47,13 @@
     // Color según el precio de ahora frente a la media del día
     const level = p.now.sek < p.avg * 0.9 ? "" : p.now.sek <= p.avg * 1.15 ? " mid" : " high";
     const tint = level === "" ? "rgba(127,191,142,.18)" : level === " mid" ? "rgba(232,184,106,.16)" : "rgba(224,122,110,.18)";
-    const c = card("power" + level, "Luz ahora", N.h("span", { class: "card-b" },
+    const c = card("power" + level, "Luz", N.h("span", { class: "card-b" },
       N.h("span", { class: "card-v" }, kr(p.real ? p.real.now : p.now.sek), N.h("small", {}, " kr/kWh")), bars, N.h("span", { class: "card-s" }, sub)),
-    () => N.toast(p.real
-      ? `Precio real con red, impuesto e IVA (spot ahora ${kr(p.now.sek)}). ` + (p.hourlyContract ? "Pagas el precio de cada momento: usa las horas baratas." : "Con tu contrato pagas la media del mes, no la de cada hora.")
-      : `Precio spot ${p.zone} sin impuestos ni red. Media de hoy: ${kr(p.avg)} kr/kWh`), "bolt");
+    openPower, "bolt");
     c.style.setProperty("--tint", tint);
+    // Gasto estimado del mes en la esquina
+    const pm = data.powerMonth && data.powerMonth.current;
+    if (pm) c.firstChild.append(N.h("span", { class: "badge month", title: "Gasto estimado del mes" }, "Mes ~" + Math.round(pm.kr) + " kr"));
     return c;
   }
 
@@ -128,6 +129,7 @@
       data.notes, (data.notes || []).map((n) => plays[n.id] || 0), playing && playing.id,
       data.dates, p && [p.now.h, p.now.sek, p.real && p.real.now, p.cheapestRest && p.cheapestRest.h, p.avg],
       data.shopping, (data.garbage || [])[0], new Date().toDateString(),
+      data.powerMonth && data.powerMonth.current && data.powerMonth.current.kr,
     ]);
   }
 
@@ -354,6 +356,57 @@
     if (sheet && sheet.dataset.kind === "notes") openNotes();
   }
 
+  // Luz: precio de ahora, gasto del mes (estimado) y meses apuntados con la factura
+  const kr0 = (v) => Math.round(v).toLocaleString("es-ES");
+  function openPower() {
+    const p = data && data.power;
+    const pm = data && data.powerMonth;
+    const body = [];
+    if (p) {
+      body.push(N.h("p", { class: "sheet-sub" }, p.real
+        ? `Ahora ${kr(p.real.now)} kr/kWh con todo incluido (spot ${kr(p.now.sek)}). ` + (p.hourlyContract ? "Pagas el precio de cada momento: usa las horas baratas." : "Con tu contrato pagas la media del mes, no la de cada hora.")
+        : `Precio spot ${p.zone} sin impuestos ni red. Media de hoy: ${kr(p.avg)} kr/kWh`));
+    }
+    if (pm && pm.current) {
+      const c = pm.current;
+      body.push(N.h("div", { class: "pw-month" },
+        N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.kr) + " kr"), N.h("span", { class: "pw-l" }, `${c.label.split(" ")[0]} hasta hoy · ~${c.kwh} kWh`)),
+        N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.forecastKr) + " kr"), N.h("span", { class: "pw-l" }, `previsión del mes · ~${c.forecastKwh} kWh`))),
+        N.h("p", { class: "pw-note" }, `Estimado con ${c.basis} y el precio real de cada hora. Incluye red, impuesto e IVA` + (c.hasGridFee ? ", y la cuota fija de la red." : " (falta la cuota fija de la red).")));
+    }
+    const rows = ((pm && pm.past) || []).map((r) => N.h("li", { class: "note-row" },
+      N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, r.label.charAt(0).toUpperCase() + r.label.slice(1)),
+        N.h("span", { class: "note-meta" }, `${r.kwh} kWh de la factura · ${kr(r.perKwh)} kr/kWh de media`)),
+      N.h("span", { class: "pw-kr" }, "~" + kr0(r.kr) + " kr"),
+      N.h("button", { class: "btn ghost note-del", type: "button", onclick: async () => {
+        const j = await N.api("/api/power/readings/" + r.month, { method: "DELETE" }).catch(() => null);
+        if (j) { data.powerMonth = j; lastKey = ""; render(); openPower(); }
+      } }, "Quitar")));
+    body.push(N.h("h3", { class: "pw-h" }, "Meses con factura"));
+    body.push(rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "pw-note" }, "Aún no hay ninguno. Cuando llegue la factura, apunta los kWh del mes: el cálculo queda exacto y la estimación de los meses siguientes mejora."));
+
+    // Apuntar los kWh de un mes ya terminado (los últimos 3)
+    const months = [];
+    const d = new Date(); d.setDate(1);
+    for (let i = 0; i < 3; i++) { d.setMonth(d.getMonth() - 1); months.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); }
+    const MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const sel = N.h("select", { class: "ed-input pw-sel", "aria-label": "Mes" }, ...months.map((m) => N.h("option", { value: m }, MES[Number(m.slice(5)) - 1] + " " + m.slice(0, 4))));
+    const input = N.h("input", { class: "ed-input", type: "number", inputmode: "decimal", min: "1", max: "20000", step: "0.1", placeholder: "kWh del mes", "aria-label": "kWh del mes" });
+    const form = N.h("form", { class: "list-add" }, sel, input, N.h("button", { class: "btn primary", type: "submit" }, "Guardar"));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!input.value) return;
+      try {
+        const j = await N.api("/api/power/readings", { method: "POST", body: { month: sel.value, kwh: input.value } });
+        data.powerMonth = j; lastKey = ""; render(); openPower();
+        N.toast("Consumo guardado");
+      } catch (err) { N.toast(err.message); }
+    });
+    body.push(form);
+    openSheet("Luz", ...body);
+    sheet.dataset.kind = "power";
+  }
+
   // Música y vídeo
   const APPS = {
     spotify: { pkg: "com.spotify.music", url: (q) => (q ? "spotify:search:" + encodeURIComponent(q) : "spotify:"), web: "https://open.spotify.com" },
@@ -541,6 +594,10 @@
       if (m.type === "shopping" && Array.isArray(m.items)) {
         data.shopping = m.items; liveAt.shopping = Date.now();
         render(); refreshListSheet();
+      } else if (m.type === "powerMonth" && m.powerMonth) {
+        data.powerMonth = m.powerMonth;
+        render();
+        if (sheet && sheet.dataset.kind === "power") openPower();
       } else if (m.type === "notes" && Array.isArray(m.notes)) {
         data.notes = m.notes; liveAt.notes = Date.now();
         checkNewNotes(m.notes);

@@ -28,7 +28,7 @@
     header { display: flex; align-items: baseline; justify-content: space-between; padding: 18px 0 10px; }
     h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
     .who { font-size: 15px; color: var(--muted); background: none; border: 0; padding: 4px 0; }
-    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--line); padding: 4px; border-radius: 12px; margin: 6px 0 18px; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; background: var(--line); padding: 4px; border-radius: 12px; margin: 6px 0 18px; }
     .tabs button { border: 0; border-radius: 9px; padding: 9px; font: inherit; font-weight: 500; background: transparent; color: var(--text); }
     .tabs button[aria-selected="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
     .panel { background: var(--panel); border-radius: 16px; overflow: hidden; }
@@ -64,6 +64,12 @@
     .rec:disabled { opacity: .5; }
     @keyframes blink { 50% { opacity: .2; } }
     .play { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--sun); color: var(--sun-ink); font-size: 15px; padding: 0; }
+    .pw-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .pw-card { background: var(--panel); border-radius: 14px; padding: 14px; }
+    .pw-v { font-size: 26px; font-weight: 600; }
+    .pw-l { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .pw-note { font-size: 13px; color: var(--muted); margin: 6px 2px 16px; }
+    .pw-h { font-size: 15px; font-weight: 600; margin: 18px 2px 8px; }
     .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
   </style>
 </head>
@@ -86,6 +92,7 @@
     <div class="tabs" role="tablist">
       <button type="button" role="tab" id="tabShop" aria-selected="true">Compra</button>
       <button type="button" role="tab" id="tabNotes" aria-selected="false">Notas</button>
+      <button type="button" role="tab" id="tabPower" aria-selected="false">Luz</button>
     </div>
 
     <section id="shop">
@@ -110,6 +117,24 @@
       </form>
       <button class="rec" id="recBtn" type="button"><span class="dot"></span><span id="recText">Grabar nota de voz</span></button>
       <p class="hint" id="recHint">Toca para empezar y otra vez para enviarla (máx. 1 minuto).</p>
+    </section>
+    <section id="power" class="hidden">
+      <div class="pw-cards">
+        <div class="pw-card"><div class="pw-v" id="pwNow">–</div><div class="pw-l" id="pwNowL">este mes hasta hoy</div></div>
+        <div class="pw-card"><div class="pw-v" id="pwFc">–</div><div class="pw-l" id="pwFcL">previsión del mes</div></div>
+      </div>
+      <p class="pw-note" id="pwBasis"></p>
+      <p class="pw-h">Apuntar la factura</p>
+      <form id="pwForm" class="note-form">
+        <div class="row">
+          <select id="pwMonth" aria-label="Mes"></select>
+          <input id="pwKwh" type="number" inputmode="decimal" min="1" max="20000" step="0.1" placeholder="kWh del mes" aria-label="kWh del mes">
+        </div>
+        <button class="btn" type="submit">Guardar consumo</button>
+      </form>
+      <p class="pw-note">Mira los kWh del mes en la factura de la luz. Con eso NEXUS calcula lo que pagasteis y estima mejor los meses siguientes.</p>
+      <p class="pw-h">Meses con factura</p>
+      <div class="panel"><ul id="pwList"></ul></div>
     </section>
     <p class="status" id="status"></p>
   </main>
@@ -308,6 +333,7 @@
           let msg; try { msg = JSON.parse(ev.data); } catch { return; }
           if (msg.type === "shopping" && Array.isArray(msg.items)) renderShop(msg.items);
           if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
+          if (msg.type === "powerMonth" && msg.powerMonth) renderPower(msg.powerMonth);
         };
         live.onclose = () => { clearInterval(livePing); live = null; if (document.visibilityState === "visible") { setTimeout(connectLive, liveRetry); liveRetry = Math.min(liveRetry * 2, 60000); } };
         live.onerror = () => { try { live.close(); } catch { /* */ } };
@@ -315,15 +341,62 @@
       connectLive();
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !live) connectLive(); });
 
+      // ---------- Luz: gasto del mes y kWh de la factura ----------
+      const MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+      const krf = (v) => "~" + Math.round(v).toLocaleString("es-ES") + " kr";
+      (function months() {
+        const d = new Date(); d.setDate(1);
+        for (let i = 0; i < 3; i++) {
+          d.setMonth(d.getMonth() - 1);
+          const v = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+          $("pwMonth").append(new Option(MES[d.getMonth()] + " " + d.getFullYear(), v));
+        }
+      })();
+      function renderPower(pm) {
+        const c = pm.current;
+        if (c) {
+          $("pwNow").textContent = krf(c.kr); $("pwNowL").textContent = `${c.label.split(" ")[0]} hasta hoy · ~${c.kwh} kWh`;
+          $("pwFc").textContent = krf(c.forecastKr); $("pwFcL").textContent = `previsión del mes · ~${c.forecastKwh} kWh`;
+          $("pwBasis").textContent = `Estimado con ${c.basis} y el precio real de cada hora, con red, impuesto e IVA.`;
+        }
+        const ul = $("pwList"); ul.replaceChildren();
+        if (!pm.past || !pm.past.length) { const li = el("li", "empty", "Aún no hay ninguno."); ul.append(li); return; }
+        for (const r of pm.past) {
+          const li = el("li");
+          const txt = el("span", "txt", r.label.charAt(0).toUpperCase() + r.label.slice(1) + " · " + krf(r.kr));
+          txt.append(el("span", "meta", r.kwh + " kWh"));
+          const del = el("button", "del", "✕"); del.type = "button"; del.setAttribute("aria-label", "Quitar");
+          del.addEventListener("click", async () => {
+            try { renderPower(await api("/api/power/readings/" + r.month, { method: "DELETE" })); } catch { /* */ }
+          });
+          li.append(txt, del); ul.append(li);
+        }
+      }
+      async function loadPower() {
+        try { renderPower(await api("/api/power/month")); } catch { /* sin conexión */ }
+      }
+      $("pwForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!$("pwKwh").value) return;
+        try {
+          renderPower(await api("/api/power/readings", { method: "POST", body: { month: $("pwMonth").value, kwh: $("pwKwh").value } }));
+          $("pwKwh").value = ""; $("status").textContent = "Consumo guardado";
+        } catch (err) { $("status").textContent = err.message || "No se pudo guardar"; }
+        setTimeout(() => ($("status").textContent = ""), 3000);
+      });
+
       // ---------- Pestañas y actualización ----------
       function tab(which) {
-        const shop = which === "shop";
-        $("shop").classList.toggle("hidden", !shop); $("notes").classList.toggle("hidden", shop);
-        $("tabShop").setAttribute("aria-selected", String(shop)); $("tabNotes").setAttribute("aria-selected", String(!shop));
+        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["power", "tabPower"]]) {
+          $(t).classList.toggle("hidden", t !== which);
+          $(id).setAttribute("aria-selected", String(t === which));
+        }
         store.set("tab", which);
+        if (which === "power") loadPower();
       }
       $("tabShop").addEventListener("click", () => tab("shop"));
       $("tabNotes").addEventListener("click", () => tab("notes"));
+      $("tabPower").addEventListener("click", () => tab("power"));
       tab(store.get("tab") || "shop");
 
       async function load() {

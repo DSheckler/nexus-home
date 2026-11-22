@@ -15,7 +15,10 @@ const DEFAULTS = {
   taxOre: 45,                  // impuesto de la energía (energiskatt)
   // Recargo de tu compañía según la fecha en que empieza cada contrato. hourly=true si pagas
   // el precio de cada hora o cuarto de hora; false si pagas la media del mes.
-  contracts: [{ from: "2000-01-01", ore: 8, name: "Contrato de ejemplo (configura el tuyo)", hourly: true }],
+  // monthlyKr: cuota mensual fija de la compañía, con IVA (0 si no tiene)
+  contracts: [{ from: "2000-01-01", ore: 8, name: "Contrato de ejemplo (configura el tuyo)", hourly: true, monthlyKr: 0 }],
+  gridMonthlyKr: 0,            // cuota fija de la red al mes, con IVA (abonnemang / fast avgift ÷ 12)
+  yearKwh: 2400,               // consumo anual aproximado, para estimar hasta apuntar facturas
 };
 
 let current = DEFAULTS;

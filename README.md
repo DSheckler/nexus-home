@@ -20,6 +20,8 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   buenos días: un resumen hablado con el tiempo, la agenda y recomendaciones (ropa, paraguas, luz barata).
 - **Precio real de la luz**: spot más red, impuesto, IVA y tu contrato, y aviso de la hora más barata para
   la lavadora.
+- **Gasto de luz del mes** sin contador conectado: NEXUS lo estima con tu consumo habitual y el precio de
+  cada hora. Cuando llega la factura, apuntas los kWh del mes desde el móvil y el cálculo queda exacto.
 - **Lista de la compra y notas** compartidas desde el móvil (sin instalar nada). Los cambios llegan al panel
   **al instante** (conexión en vivo por WebSocket), y una nota nueva suena con un aviso corto.
 - **Notas de voz**: se graban desde el móvil (hasta 1 minuto). En el panel aparecen como una tarjeta azul
@@ -83,7 +85,8 @@ Necesitas una cuenta gratuita de [Cloudflare](https://dash.cloudflare.com/sign-u
    npx wrangler secret put FAMILY_TOKEN
    ```
 4. **Configura tu casa**: copia `nexus-home.example.json`, cambia la ciudad, las coordenadas, la zona de
-   precio (SE1–SE4), los nombres de la familia y tu contrato de luz. Pega el JSON (en una línea) en:
+   precio (SE1–SE4), los nombres de la familia, tu contrato de luz, la cuota fija de la red al mes
+   (`gridMonthlyKr`) y tu consumo anual aproximado (`yearKwh`). Pega el JSON (en una línea) en:
    ```powershell
    npx wrangler secret put NEXUS_HOME
    ```

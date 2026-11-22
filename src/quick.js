@@ -7,6 +7,7 @@ import { getAgenda } from "./calendar.js";
 import * as H from "./household.js";
 import { getPower, nextAlarmText } from "./extras.js";
 import { config } from "./config.js";
+import { powerMonthText } from "./consumption.js";
 
 const TZ = "Europe/Stockholm";
 const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
@@ -122,6 +123,14 @@ const INTENTS = [
       if (!pending.length) return "La lista de la compra está vacía.";
       return `En la lista hay ${pending.length === 1 ? "una cosa" : pending.length + " cosas"}: ${pending.slice(0, 12).join(", ")}.`;
     },
+  },
+
+  // ---------- gasto de luz del mes ----------
+  {
+    test: (q) => /\b(luz|electricidad|consumo|kwh|kilovatios)\b/.test(q)
+      && /\b(gastado|gastamos|gastando|llevamos|consumido|consumimos|vamos a pagar|pagaremos|pagamos|factura|este mes|al mes|del mes)\b/.test(q)
+      && !/\b(enciende|apaga|lampara|luces)\b/.test(q) && words(q) <= 12,
+    run: async (m, env) => powerMonthText(env),
   },
 
   // ---------- precio de la luz ----------

@@ -820,3 +820,15 @@ body.night .pills { display: none; }
 .note-text { font-size: 2.2rem; }
 .note-meta { font-size: 1.6rem; color: var(--muted); }
 .note-del { flex: none; color: #f0a49a; }
+.note-list.short { max-height: 22rem; }
+
+/* Hoja de luz */
+.card .badge.month { font-weight: 500; font-size: 1.3rem; white-space: nowrap; }
+.pw-month { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin: .4rem 0 1rem; }
+.pw-big { display: flex; flex-direction: column; gap: .3rem; padding: 1.4rem 1.6rem; border-radius: var(--r-md); background: rgba(255, 255, 255, .05); border: 1px solid var(--glass-edge); }
+.pw-v { font-family: "Outfit", sans-serif; font-weight: 300; font-size: 4.2rem; line-height: 1; }
+.pw-l { font-size: 1.6rem; color: var(--muted); }
+.pw-note { font-size: 1.6rem; color: var(--muted); margin: 0 0 1.4rem; }
+.pw-h { font-size: 1.9rem; font-weight: 600; margin: .6rem 0 .4rem; }
+.pw-kr { flex: none; font-size: 2.2rem; font-variant-numeric: tabular-nums; }
+.pw-sel { flex: none; width: auto; }

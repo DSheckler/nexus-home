@@ -3,10 +3,22 @@
   "lat": 57.7089,
   "lon": 11.9746,
   "zone": "SE3",
-  "family": ["Ana", "Luis", "Sofía"],
+  "family": [
+    "Ana",
+    "Luis",
+    "Sofía"
+  ],
   "gridOre": 25,
   "taxOre": 45,
   "contracts": [
-    { "from": "2000-01-01", "ore": 8, "name": "Mi compañía, precio por hora", "hourly": true }
-  ]
+    {
+      "from": "2000-01-01",
+      "ore": 8,
+      "name": "Mi compañía, precio por hora",
+      "hourly": true,
+      "monthlyKr": 0
+    }
+  ],
+  "gridMonthlyKr": 150,
+  "yearKwh": 2400
 }
