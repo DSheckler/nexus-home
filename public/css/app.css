@@ -400,6 +400,11 @@ button:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
   border-radius: 999px;
   font-size: 2rem;
 }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bar .assistant { padding: 1.1rem; position: relative; }
+.ai-state { display: flex; align-items: center; flex: none; }
+.ai-state .pill, .ai-state .pill:first-child { max-width: none; min-width: 0; }
+.ai-state .pill { font-size: 1.6rem; }
 .orb {
   width: 3.8rem; height: 3.8rem;
   border-radius: 50%;
@@ -475,6 +480,7 @@ body.talking .caption:has(.cap-form:not([hidden])) .cap-reply { display: none; }
 /* Avisos informativos arriba (cuota de IA, festivos, temporada, aurora, polen): ocupan el hueco libre */
 .pills.top { flex: 1; gap: .8rem; }
 .pills.top .pill { padding: .35rem 1.2rem .35rem .45rem; font-size: 1.5rem; gap: .6rem; }
+.pills.top .pill.has-t { min-width: 10rem; }
 .pills.top .pill .ic { width: 2.2rem; height: 2.2rem; }
 .pills.top .pill .ic svg { width: 1.3rem; height: 1.3rem; }
 .sys { display: flex; align-items: center; gap: .8rem; font-size: 1.8rem; color: var(--muted); white-space: nowrap; min-width: 0; flex: 0 1 auto; }
@@ -510,8 +516,8 @@ body.night .topline { display: none; }
 }
 .action svg { width: 2.4rem; height: 2.4rem; color: var(--muted); }
 /* Cinco accesos: botones algo más compactos para que quepan */
-.actions { gap: .8rem; }
-.actions .action { padding: 1.1rem 1.5rem; gap: .7rem; font-size: 1.8rem; }
+.actions { gap: 1rem; }
+.actions .action { padding: 1.2rem 2rem; gap: .9rem; font-size: 1.9rem; }
 .action:active { background: var(--panel); }
 
 /* ---------- Aviso ---------- */
@@ -584,7 +590,11 @@ body.night .topline { display: none; }
   overflow: hidden;
 }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
-.sheet-head h2 { margin: 0; font-size: 3.2rem; font-weight: 500; }
+.sheet-head h2 { margin: 0; font-size: 3.2rem; font-weight: 500; flex: 1; }
+.sheet-head .back { margin-right: 1.6rem; }
+.notice-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+.notice-row { display: flex; align-items: center; gap: 1.4rem; padding: 1.4rem 0; border-top: 1px solid var(--line); font-size: 2.1rem; cursor: pointer; }
+.notice-row .ic { width: 3.2rem; height: 3.2rem; }
 .sheet-sub { margin: 1rem 0 2rem; font-size: 2rem; color: var(--muted); }
 .sheet-foot { display: flex; justify-content: space-between; gap: 1.6rem; margin-top: 2.4rem; }
 
@@ -908,8 +918,12 @@ body.vacation:not(.night) .vac { color: var(--muted); }
 .menu-row, .school-row { display: flex; align-items: center; gap: 1.2rem; padding: .9rem 0; border-top: 1px solid var(--line); }
 .menu-row.today .menu-day { color: var(--sun); }
 .menu-day { flex: none; width: 10rem; font-size: 1.8rem; font-weight: 600; text-transform: capitalize; }
-.menu-fields { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1.3fr; gap: .8rem; }
+.menu-fields { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: .8rem; }
+.menu-fields .ed-input { width: 100%; min-width: 0; }
+.menu-row > .btn { flex: none; }
+.menu-day { line-height: 1.2; }
 .school-row .ed-input.t, .list-add .ed-input.t { flex: none; width: 13rem; }
+.list-add .ed-input[type="date"] { width: 21rem; }
 .school-row .ed-input:not(.t) { flex: 1; min-width: 0; }
 
 /* Modo cocina */

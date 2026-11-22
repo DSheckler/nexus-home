@@ -153,12 +153,13 @@
       chips.push(chip("warn " + w.level, "warn", "SMHI: " + w.event + until, () => N.toast(w.text || w.event)));
     }
     const top = [];
+    let aiPill = null;
     const ai = data.ai;
     if (ai && ai.used >= ai.free * 0.7) {
       const out = ai.used >= ai.free;
       const reset = new Date(); reset.setUTCHours(24, 0, 0, 0);
       const at = reset.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
-      top.push(chip("warn " + (out ? "orange" : "yellow"), "warn", out ? "IA agotada hasta las " + at : "Queda " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " % de IA",
+      aiPill = (chip("warn " + (out ? "orange" : "yellow"), "warn", out ? "Sin IA hasta " + at : "IA " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " %",
         () => N.toast(out ? "NEXUS no puede responder con IA hasta las " + at + ". Las preguntas habituales y el resto del panel funcionan." : "La voz natural y «Oye NEXUS» se apagan solas antes de agotarla.")));
     }
     for (const t of data.timers || []) {
@@ -190,6 +191,7 @@
 
     $("pills").replaceChildren(...chips);
     $("pillsTop").replaceChildren(...top);
+    $("aiState").replaceChildren(...(aiPill ? [aiPill] : []));
     box.replaceChildren(N.h("div", { class: "tiles" + (tiles.length === 4 ? " four" : "") }, ...tiles));
     renderAbroad();
     fitChips();
@@ -276,7 +278,7 @@
     const hidden = kids.filter((c) => c.getBoundingClientRect().right > right);
     if (!hidden.length) return;
     hidden.forEach((c) => { c.hidden = true; });
-    const more = N.h("button", { class: "pill pill-more", type: "button", onclick: () => N.toast(hidden.map((c) => c.textContent.trim()).join(" · ")) }, "+" + hidden.length);
+    const more = N.h("button", { class: "pill pill-more", type: "button", onclick: () => openNotices(hidden) }, "+" + hidden.length);
     row.append(more);
     while (more.getBoundingClientRect().right > right) {
       const vis = kids.filter((c) => !c.hidden);
@@ -287,6 +289,19 @@
     }
   }
 
+
+  // Avisos que no caben en la franja: en una hoja, completos. Tocar uno hace lo mismo que en la franja.
+  function openNotices(list) {
+    const rows = list.map((c) => {
+      const icon = c.querySelector(".ic");
+      const row = N.h("li", { class: "notice-row " + c.className.replace(/\bpill\b|\bhas-t\b/g, "") },
+        icon ? N.h("span", { class: "ic", html: icon.innerHTML }) : null,
+        N.h("span", { class: "notice-t" }, c.title || c.textContent.trim()));
+      row.addEventListener("click", () => { closeSheet(); c.hidden = false; c.click(); });
+      return row;
+    });
+    openSheet("Avisos", N.h("ul", { class: "notice-list" }, ...rows));
+  }
 
   // La columna de la hora debe caber entera (en la tablet real hay unos píxeles menos):
   // si no cabe, la hora se reduce poco a poco, como mucho hasta 17rem.
@@ -441,7 +456,7 @@
   function guestButton() {
     return N.h("div", { class: "guest-box" },
       N.h("span", { class: "note-meta" }, "¿Visita en casa? Pueden usar la lista de la compra y dejar notas desde su móvil, sin ver nada más."),
-      N.h("button", { class: "btn", type: "button", onclick: () => openGuest() }, "Invitar con un QR"));
+      N.h("button", { class: "btn", type: "button", onclick: goFrom(openHouse, () => openGuest()) }, "Invitar con un QR"));
   }
   async function openGuest(hours = 24) {
     openSheet("Invitado", N.h("p", { class: "sheet-sub" }, "Creando el enlace…"));
@@ -562,7 +577,7 @@
     const list = (data.menuWeek || data.menu || []);
     const rows = list.map((d, i) => {
       const meal = N.h("input", { class: "ed-input", type: "text", maxlength: "80", value: d.meal || "", placeholder: "¿Qué cenamos?", "aria-label": "Cena" });
-      const ing = N.h("input", { class: "ed-input ing", type: "text", maxlength: "300", value: (d.ingredients || []).join(", "), placeholder: "Ingredientes, separados por comas", "aria-label": "Ingredientes" });
+      const ing = N.h("input", { class: "ed-input ing", type: "text", maxlength: "300", value: (d.ingredients || []).join(", "), placeholder: "Ingredientes (con comas)", "aria-label": "Ingredientes" });
       const save = async () => {
         try { const j = await N.api("/api/menu/" + d.date, { method: "PUT", body: { meal: meal.value, ingredients: ing.value } }); data.menuWeek = j.menu; data.menu = j.menu.slice(0, 2); render(); }
         catch (e) { N.toast(e.message); }
@@ -609,7 +624,7 @@
     const saveBtn = N.h("button", { class: "btn primary", type: "button", onclick: async () => {
       const days = {};
       for (const f of fields) days[f.k] = { start: f.st.value, end: f.en.value, bring: f.br.value };
-      try { await N.api("/api/school", { method: "PUT", body: { name: name.value, days } }); N.toast("Horario guardado"); closeSheet(); refresh(); }
+      try { await N.api("/api/school", { method: "PUT", body: { name: name.value, days } }); N.toast("Horario guardado"); afterSave(); refresh(); }
       catch (e) { N.toast(e.message); }
     } }, "Guardar");
     openSheet("Colegio",
@@ -687,29 +702,41 @@
       N.h("div", { class: "sheet-foot" },
         v ? N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/vacation", { method: "DELETE" }).catch(() => {}); try { localStorage.removeItem("nexus.vaclist"); } catch { /* */ } closeSheet(); refresh(); N.toast("Modo vacaciones quitado"); } }, "Quitar vacaciones") : N.h("span"),
         N.h("button", { class: "btn primary", type: "button", onclick: async () => {
-          try { await N.api("/api/vacation", { method: "PUT", body: { from: from.value, to: to.value } }); closeSheet(); refresh(); N.toast("Vacaciones guardadas. ¡Buen viaje!"); }
+          try { await N.api("/api/vacation", { method: "PUT", body: { from: from.value, to: to.value } }); afterSave(); refresh(); N.toast("Vacaciones guardadas. ¡Buen viaje!"); }
           catch (e) { N.toast(e.message); }
         } }, "Guardar")));
   }
+  // Tras guardar: volver a la hoja anterior si la hay; si no, cerrar
+  function afterSave() { const b = sheetBack; if (b) { sheetBack = null; sheetTitle = null; b(); } else closeSheet(); }
   function houseExtras() {
     return N.h("div", { class: "house-extras" },
-      N.h("button", { class: "btn ghost", type: "button", onclick: () => openPlants() }, "Plantas"),
-      N.h("button", { class: "btn ghost", type: "button", onclick: () => openSchool() }, "Colegio"),
-      N.h("button", { class: "btn ghost", type: "button", onclick: () => openAbroad() }, "Familia lejos"),
-      N.h("button", { class: "btn ghost", type: "button", onclick: () => openVacation() }, "Vacaciones"));
+      N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openPlants) }, "Plantas"),
+      N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openSchool) }, "Colegio"),
+      N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openAbroad) }, "Familia lejos"),
+      N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openVacation) }, "Vacaciones"));
   }
 
   // ---------- paneles ----------
   let sheet = null;
+  // Navegación entre hojas: si se abre una hoja desde otra (p. ej. Colegio desde Casa), lleva
+  // un botón «Volver». backTo se pone justo antes de abrir; la hoja lo conserva aunque se redibuje.
+  let backTo = null, sheetBack = null, sheetTitle = null;
+  const goFrom = (back, open) => () => { backTo = back; open(); };
   function openSheet(title, ...children) {
-    closeSheet();
+    if (backTo) { sheetBack = backTo; backTo = null; sheetTitle = title; }
+    else if (title !== sheetTitle) { sheetBack = null; sheetTitle = title; }
+    if (sheet) sheet.remove();
+    const back = sheetBack;
     sheet = N.h("div", { class: "sheet-wrap", onclick: (e) => { if (e.target === sheet) closeSheet(); } },
       N.h("div", { class: "sheet" },
-        N.h("header", { class: "sheet-head" }, N.h("h2", {}, title), N.h("button", { class: "btn ghost", type: "button", onclick: closeSheet }, "Cerrar")),
+        N.h("header", { class: "sheet-head" },
+          back ? N.h("button", { class: "btn ghost back", type: "button", onclick: () => { sheetBack = null; sheetTitle = null; back(); } }, "‹ Volver") : null,
+          N.h("h2", {}, title),
+          N.h("button", { class: "btn ghost", type: "button", onclick: closeSheet }, "Cerrar")),
         ...children));
     document.body.append(sheet);
   }
-  function closeSheet() { if (sheet) sheet.remove(); sheet = null; }
+  function closeSheet() { if (sheet) sheet.remove(); sheet = null; sheetBack = null; sheetTitle = null; }
 
   // Lista de la compra
   function openList() {

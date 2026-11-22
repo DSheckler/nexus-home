@@ -57,10 +57,11 @@
 
     <!-- Asistente y accesos rápidos -->
     <footer class="bar">
-      <button class="assistant" id="assistant" type="button">
+      <button class="assistant" id="assistant" type="button" aria-label="Hablar con NEXUS">
         <span class="orb" aria-hidden="true"></span>
-        <span id="assistantText">Toca para hablar con NEXUS</span>
+        <span id="assistantText" class="sr-only">Toca para hablar con NEXUS</span>
       </button>
+      <div class="ai-state" id="aiState"></div>
       <button class="icon-btn" id="micBtn" type="button" aria-label="Escucha «Oye NEXUS»" aria-pressed="true"></button>
       <button class="icon-btn" id="keyboardBtn" type="button" aria-label="Escribir al asistente"></button>
       <div class="bar-right">

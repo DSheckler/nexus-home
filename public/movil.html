@@ -87,6 +87,19 @@
     .sch b { font-size: 14px; }
     .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
     .two > * { min-width: 0; } .two input, .two select { width: 100%; min-width: 0; }
+    .two label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+    /* iPhone: las fechas y horas sin estilo salen vacías y con ancho fijo */
+    input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; min-height: 46px; text-align: left; }
+    input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-date-and-time-value { text-align: left; }
+    input, select, .btn, .ghost-btn { font-size: 16px; }
+    .btn, .ghost-btn { min-height: 46px; }
+    .h-sec { padding: 16px; border-radius: 16px; }
+    .h-sec h2 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+    .h-sec .meta2 { margin: 0 0 12px; }
+    .h-sec .link { margin: 6px auto; text-align: center; width: 100%; }
+    .sch { grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 10px; }
+    .sch b { font-size: 15px; font-weight: 600; }
+    .sch input { padding: 10px 12px; }
     .sw { flex: none; width: 52px; height: 30px; border-radius: 99px; border: 0; background: var(--line); position: relative; }
     .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left .15s; }
     .sw[aria-checked="true"] { background: var(--sun); }
@@ -190,7 +203,7 @@
         <p class="meta2">Su hora sale arriba en el panel.</p>
         <div id="hAbroad"></div>
         <div class="two">
-          <input id="abName" type="text" maxlength="24" placeholder="Nombre (p. ej. Abuelos)" aria-label="Nombre">
+          <input id="abName" type="text" maxlength="24" placeholder="Nombre" aria-label="Nombre">
           <select id="abZone" aria-label="País"></select>
         </div>
         <button class="ghost-btn" id="abAdd" type="button" style="width:100%">Añadir</button>

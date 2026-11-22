@@ -21,7 +21,7 @@ import { getAir, getAurora } from "./outdoor.js";
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.15.3";
+const VERSION = "1.15.4";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
