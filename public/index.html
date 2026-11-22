@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#15171a">
   <title>NEXUS Home</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Outfit:wght@200;300&display=swap" rel="stylesheet">
+  <link rel="preload" href="fonts/figtree.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/outfit.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/app.css">
@@ -24,7 +23,10 @@
       </div>
       <div class="clock" id="clock">--:--</div>
       <div class="date" id="date"></div>
-      <div class="alarm" id="alarm"></div>
+      <div class="status-row">
+        <div class="alarm" id="alarm"></div>
+        <div class="pills" id="pills" aria-live="polite"></div>
+      </div>
       <div class="info" id="info" aria-live="polite"></div>
     </section>
 

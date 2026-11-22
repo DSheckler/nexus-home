@@ -20,43 +20,54 @@ const NUM = {
 };
 const num = (w) => (/^\d+$/.test(w) ? Number(w) : NUM[w.replace(/ /g, "_")]);
 
-// Frase "limpia": minúsculas, sin tildes, sin "oye nexus" ni signos
+// Frase "limpia": minúsculas, sin tildes, sin "oye nexus", sin signos y sin coletillas
+// de cortesía ("me puedes decir…", "oye, dime…"), para que casen más formas de preguntar
+const POLITE = /^((me )?(puedes|podrias) decir(me)?|(puedes|podrias) (mirar|ver)|dime|sabes|quiero saber|una pregunta|oye|ey|hey|nexus|nexos|lexus|y|vale|bueno|a ver) /;
 function clean(q) {
-  return q.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  let s = q.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim()
-    .replace(/^(oye |hey |ey )?(nexus |nexos |lexus )?/, "")
     .replace(/ (nexus|por favor|porfa)$/, "").trim();
+  for (let i = 0; i < 4 && POLITE.test(s); i++) s = s.replace(POLITE, "");
+  return s;
+}
+const words = (q) => q.split(" ").length;
+const fDate = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
+const WX = /\b(tiempo|clima|temperatura|grados|frio|calor|abrigo)\b/;
+const WET = /\b(llover|llovera|llueve|lluvia|nevar|nevara|nieva|nieve|paraguas)\b/;
+const NOT_WX = /\b(temporizador|alarma|recuerda|recuerdame|avisa|avisame|cuanto tiempo|queda|falta|tarda|hace cuanto|semana|pasado manana)\b/;
+
+// Temporizadores: "pon un temporizador de 5 minutos", "avísame dentro de 10 minutos para la pasta"…
+function timerIntent(re, amountAt, labelAt) {
+  return {
+    re,
+    run: async (m, env, changed) => {
+      const secs = parseDuration(m[amountAt] || "");
+      if (!secs) return null; // "pon una alarma a las 7" → que lo haga la IA
+      const label = (m[labelAt] || "").trim();
+      await H.createTimer(env, { seconds: secs, label: label || undefined });
+      changed.home = true;
+      return `Temporizador de ${sayDuration(secs)}${label ? ` para ${label}` : ""} en marcha.`;
+    },
+  };
 }
 
 const INTENTS = [
   // ---------- hora ----------
-  { re: /^(que hora es|me dices la hora|dime la hora)$/, run: async () => `Son las ${fHour.format(new Date())}.` },
+  { re: /^(que hora es|que horas son|que hora tenemos|me dices la hora|dime la hora|la hora)( ahora)?$/, run: async () => `Son las ${fHour.format(new Date())}.` },
 
-  // ---------- tiempo ahora ----------
+  // ---------- fecha ----------
   {
-    re: /^(que|como) (tiempo|clima) (hace|tenemos|hay)( hoy| ahora| fuera| afuera)?$|^(que temperatura hace|cuantos grados hace|hace frio)( hoy| ahora| fuera| afuera)?$/,
-    run: async () => {
-      const w = await getWeather();
-      const feels = w.now.feels < w.now.temp - 2 ? `, con sensación de ${w.now.feels}` : "";
-      return `Ahora hay ${w.now.temp} grados en ${config().city}${feels}, ${w.now.text.toLowerCase()}. Hoy, entre ${w.today.min} y ${w.today.max} grados.`;
-    },
+    re: /^(que dia es( hoy)?|a que (dia )?estamos( hoy)?|que fecha es( hoy)?|cual es la fecha( de hoy)?|en que dia estamos)$/,
+    run: async () => `Hoy es ${fDate.format(new Date())}.`,
   },
 
-  // ---------- lluvia hoy ----------
-  {
-    re: /^(va a llover|llovera|lloverá|va a nevar|nevara)( hoy)?$|^(necesito|hace falta|llevo) (el )?paraguas( hoy)?$/,
-    run: async () => {
-      const d = await getWeatherDetail();
-      const nowH = d.now.time.slice(11, 13);
-      const wet = d.days[0].hours.filter((x) => x.h >= nowH && x.rainProb >= 50);
-      if (!wet.length) return `No se espera lluvia el resto del día: probabilidad máxima de ${Math.max(0, ...d.days[0].hours.filter((x) => x.h >= nowH).map((x) => x.rainProb))} por ciento.`;
-      return `Sí, es probable a partir de las ${wet[0].h}:00, con un ${wet[0].rainProb} por ciento. Mejor lleva paraguas.`;
-    },
-  },
+  // ---------- cortesía (sin gastar IA) ----------
+  { re: /^(gracias|muchas gracias|vale gracias|ok gracias|genial gracias|perfecto gracias)$/, run: async () => "De nada." },
+  { re: /^(hola|hola que tal)$/, run: async () => "¡Hola! ¿En qué te ayudo?" },
 
   // ---------- tiempo de mañana ----------
   {
-    re: /^(que|como) (tiempo|clima) (hara|va a hacer|hay|tendremos) manana$|^(como estara|como sera) (el tiempo |el clima )?manana$|^(el )?(tiempo|clima) (de|para) manana$|^(va a llover|llovera) manana$/,
+    test: (q) => (WX.test(q) || WET.test(q)) && /\bmanana\b/.test(q) && !NOT_WX.test(q) && words(q) <= 9,
     run: async () => {
       const d = await getWeatherDetail();
       const t = d.days[1];
@@ -66,23 +77,36 @@ const INTENTS = [
     },
   },
 
-  // ---------- temporizador ----------
+  // ---------- lluvia hoy ----------
   {
-    re: /^(pon|ponme|crea|programa|inicia|activa)( una?)? (temporizador|timer|cronometro|alarma) (de )?(.+?)( para (.+))?$|^(avisame|recuerdame) en (.+?)( para (.+))?$/,
-    run: async (m, env, changed) => {
-      const amount = m[5] || m[9];
-      const label = (m[7] || m[11] || "").trim();
-      const secs = parseDuration(amount);
-      if (!secs) return null; // "pon una alarma a las 7" → que lo haga la IA
-      const t = await H.createTimer(env, { seconds: secs, label: label || undefined });
-      changed.home = true;
-      return `Temporizador de ${sayDuration(secs)}${label ? ` para ${label}` : ""} en marcha.`;
+    test: (q) => WET.test(q) && !/\bmanana\b/.test(q) && !NOT_WX.test(q) && words(q) <= 9,
+    run: async () => {
+      const d = await getWeatherDetail();
+      const nowH = d.now.time.slice(11, 13);
+      const wet = d.days[0].hours.filter((x) => x.h >= nowH && x.rainProb >= 50);
+      if (!wet.length) return `No se espera lluvia el resto del día: probabilidad máxima de ${Math.max(0, ...d.days[0].hours.filter((x) => x.h >= nowH).map((x) => x.rainProb))} por ciento.`;
+      return `Sí, es probable a partir de las ${wet[0].h}:00, con un ${wet[0].rainProb} por ciento. Mejor lleva paraguas.`;
     },
   },
 
+  // ---------- tiempo ahora ----------
+  {
+    test: (q) => WX.test(q) && !/\bmanana\b/.test(q) && !NOT_WX.test(q) && words(q) <= 8,
+    run: async () => {
+      const w = await getWeather();
+      const feels = w.now.feels < w.now.temp - 2 ? `, con sensación de ${w.now.feels}` : "";
+      return `Ahora hay ${w.now.temp} grados en ${config().city}${feels}, ${w.now.text.toLowerCase()}. Hoy, entre ${w.today.min} y ${w.today.max} grados.`;
+    },
+  },
+
+  // ---------- temporizador ----------
+  timerIntent(/^(pon|ponme|crea|programa|inicia|activa|empieza)( un| una)? (temporizador|timer|cronometro|alarma) (de )?(.+?)( para (.+))?$/, 5, 7),
+  timerIntent(/^(avisame|recuerdame|llamame) (en|dentro de) (.+?)( para (.+))?$/, 3, 5),
+  timerIntent(/^(temporizador|timer|cronometro) (de )?(.+?)( para (.+))?$/, 3, 5),
+
   // ---------- lista de la compra ----------
   {
-    re: /^(anade|agrega|apunta|pon|mete|anota) (.+?) (a|en) la lista( de la compra| de compras)?$/,
+    re: /^(anade|agrega|apunta|pon|mete|anota|incluye|apuntame) (.+?) (a|en) (la|mi) (lista|compra)( de (la )?compras?| del super(mercado)?)?$/,
     run: async (m, env, changed) => {
       const items = m[2].split(/,| y /).map((s) => s.trim()).filter(Boolean).slice(0, 10);
       if (!items.length) return null;
@@ -92,7 +116,7 @@ const INTENTS = [
     },
   },
   {
-    re: /^(que (hay|tenemos|falta|queda) en la lista( de la compra)?|lee(me)? la lista( de la compra)?|que hay que comprar|que tenemos que comprar)$/,
+    re: /^(que (hay|tenemos|tengo|falta|queda|pone) (en )?(la|mi) (lista|compra)( de (la )?compras?)?|lee(me)? (la|mi) lista( de (la )?compras?)?|que (hay|tenemos|tengo) que comprar|que (falta|necesitamos) comprar|(la )?lista de (la )?compras?|como (esta|va) la lista( de (la )?compras?)?)$/,
     run: async (m, env) => {
       const pending = (await H.listShopping(env)).filter((i) => !i.done).map((i) => i.text);
       if (!pending.length) return "La lista de la compra está vacía.";
@@ -102,7 +126,8 @@ const INTENTS = [
 
   // ---------- precio de la luz ----------
   {
-    re: /^(cuanto (cuesta|vale|esta) la (luz|electricidad)( ahora| hoy)?|(que )?precio (tiene )?(de )?la (luz|electricidad)( ahora| hoy)?|esta (cara|barata) la luz( ahora)?|cuando (es|esta) (mas barata|barata) la luz( hoy)?)$/,
+    test: (q) => /\b(luz|electricidad|kwh|kilovatio)\b/.test(q) && /\b(cuesta|vale|precio|cara|barata|caro|barato|cuanto|cuando|esta|tarifa)\b/.test(q)
+      && !/\b(enciende|apaga|prende|enciendes|apagas|lampara|salon|cocina|dormitorio|bano|habitacion|encendida|apagada|luces)\b/.test(q) && words(q) <= 10,
     run: async () => {
       const p = await getPower();
       const c = p.real.cheapestRest;
@@ -112,9 +137,21 @@ const INTENTS = [
     },
   },
 
+  // ---------- agenda de hoy ----------
+  {
+    re: /^(que (hay|tengo|tenemos|hacemos) (para )?hoy|que (hay|tengo|tenemos) (hoy )?en la agenda( hoy| para hoy)?|(la )?agenda (de|para) hoy|que planes (hay|tenemos) (para )?hoy|(tengo|tenemos|hay) algo (para )?hoy)$/,
+    run: async (m, env) => {
+      const a = await getAgenda(env);
+      const nowHM = fHour.format(new Date());
+      const left = (a.today || []).filter((e) => e.allDay || e.end >= nowHM);
+      if (!left.length) return "Hoy no queda nada en la agenda.";
+      return `Hoy: ${left.slice(0, 5).map((e) => (e.allDay ? e.title : `${e.title} a las ${e.start}`)).join(", ")}.`;
+    },
+  },
+
   // ---------- agenda de mañana ----------
   {
-    re: /^(que (hay|tengo|tenemos) (para )?manana|que hacemos manana|(la )?agenda (de|para) manana|que tenemos en la agenda manana)$/,
+    re: /^(que (hay|tengo|tenemos|hacemos) (para )?manana|que (hay|tengo|tenemos) en la agenda (para )?manana|(la )?agenda (de|para) manana|que planes (hay|tenemos) (para )?manana|(tengo|tenemos|hay) algo (para )?manana)$/,
     run: async (m, env) => {
       const a = await getAgenda(env);
       const tmr = (a.upcoming || []).filter((e) => e.when === "Mañana");
@@ -125,7 +162,7 @@ const INTENTS = [
 
   // ---------- alarma ----------
   {
-    re: /^(a que hora (suena|sonara) (la|mi) alarma( manana)?|cuando suena (la|mi) alarma|tengo (alguna )?alarma( manana)?|hay alarma( manana)?)$/,
+    re: /^(a que hora (suena|sonara) (la|mi|el) (alarma|despertador)( manana)?|cuando suena (la|mi|el) (alarma|despertador)( manana)?|tengo (alguna )?alarma( puesta)?( para)?( manana)?|hay (alguna )?alarma( puesta)?( para)?( manana)?|a que hora me (despierto|levanto)( manana)?)$/,
     run: async (m, env) => nextAlarmText(env),
   },
 ];
@@ -161,7 +198,7 @@ export async function quickAnswer(env, question, changed) {
   if (question.length > 90) return null;
   const q = clean(question);
   for (const it of INTENTS) {
-    const m = q.match(it.re);
+    const m = it.re ? q.match(it.re) : it.test(q) ? [q] : null;
     if (!m) continue;
     try {
       const reply = await it.run(m, env, changed);

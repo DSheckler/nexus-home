@@ -83,7 +83,7 @@
     } });
     const P = (d) => `<svg viewBox="0 0 24 24" fill="currentColor"><path d="${d}"/></svg>`;
     const appName = media.app.includes("spotify") ? "Spotify" : media.app.includes("youtube") ? "YouTube" : "Música";
-    const el = N.h("div", { class: "card media-card", style: media.tint ? `--tint:${media.tint}` : null },
+    const el = N.h("div", { class: "pill media-pill", style: media.tint ? `--tint:${media.tint}` : null },
       media.art ? N.h("img", { class: "mart", src: media.art, alt: "" }) : N.h("span", { class: "mart blank" }),
       N.h("span", { class: "minfo", onclick: () => openApp(appName === "YouTube" ? "youtube" : "spotify") },
         N.h("span", { class: "card-t" }, N.h("span", { class: "ic", html: N.ICON.music }), appName),
@@ -115,74 +115,158 @@
     img.src = src;
   }
 
+  // Orden fijo: junto a la alarma, una franja con lo que pasa ahora (música, avisos,
+  // temporizadores, cumpleaños, basura); debajo siempre las mismas tres tarjetas (Notas, Compra, Luz).
+  // Solo se redibuja si algo ha cambiado: en la tablet, rehacer todo cada 30 s se nota.
+  let lastKey = "";
+  function renderKey() {
+    const ai = data.ai && data.ai.used >= data.ai.free * 0.7 ? [data.ai.used >= data.ai.free, Math.round(100 - data.ai.used / data.ai.free * 100)] : 0;
+    const p = data.power;
+    return JSON.stringify([
+      media && [media.title, media.artist, media.playing, media.artKey, media.tint || ""],
+      data.warnings, ai, (data.timers || []).map((t) => [t.id, t.label, t.endsAt]),
+      data.notes, (data.notes || []).map((n) => plays[n.id] || 0), playing && playing.id,
+      data.dates, p && [p.now.h, p.now.sek, p.real && p.real.now, p.cheapestRest && p.cheapestRest.h, p.avg],
+      data.shopping, (data.garbage || [])[0], new Date().toDateString(),
+    ]);
+  }
+
   function render() {
     const box = $("info");
-    if (!data) return box.replaceChildren();
-    const cards = [];
+    if (!data) { lastKey = ""; $("pills").replaceChildren(); return box.replaceChildren(); }
+    const key = renderKey();
+    if (key === lastKey && box.childElementCount) return;
+    lastKey = key;
     const now = Date.now() - (data.skew || 0);
-    if (media) cards.push(mediaCard());
 
+    // ---- franja de avisos ----
+    const chips = [];
+    if (media) chips.push(mediaCard());
     for (const w of data.warnings || []) {
-      cards.push(card("warn " + w.level, "Aviso SMHI", N.h("span", { class: "card-b" },
-        N.h("span", { class: "card-v sm" }, w.event), N.h("span", { class: "card-s" }, w.end ? "Hasta " + new Date(w.end).toLocaleString("es-ES", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" }) : "")),
-      () => N.toast(w.text || w.event), "warn"));
+      const until = w.end ? " · hasta " + new Date(w.end).toLocaleString("es-ES", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" }) : "";
+      chips.push(chip("warn " + w.level, "warn", "SMHI: " + w.event + until, () => N.toast(w.text || w.event)));
     }
-    // Cuota gratuita diaria de la IA (voz y asistente): aviso desde el 70 %
     const ai = data.ai;
     if (ai && ai.used >= ai.free * 0.7) {
       const out = ai.used >= ai.free;
       const reset = new Date(); reset.setUTCHours(24, 0, 0, 0);
       const at = reset.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
-      cards.push(card("warn " + (out ? "orange" : "yellow"), "Cuota de IA", N.h("span", { class: "card-b" },
-        N.h("span", { class: "card-v sm" }, out ? "Agotada por hoy" : "Queda " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " %"),
-        N.h("span", { class: "card-s" }, out ? "Vuelve a las " + at : "Se renueva a las " + at)),
-      () => N.toast(out ? "NEXUS no puede responder hasta las " + at + ". El resto del panel funciona." : "La voz natural y «Oye NEXUS» se apagan solas antes de agotarla."), "warn"));
+      chips.push(chip("warn " + (out ? "orange" : "yellow"), "warn", out ? "IA agotada hasta las " + at : "Queda " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " % de IA",
+        () => N.toast(out ? "NEXUS no puede responder con IA hasta las " + at + ". Las preguntas habituales y el resto del panel funcionan." : "La voz natural y «Oye NEXUS» se apagan solas antes de agotarla.")));
     }
     for (const t of data.timers || []) {
       const left = (t.endsAt - now) / 1000;
       if (left < -5) continue;
-      cards.push(card("timer", t.label, N.h("span", { class: "card-b" }, N.h("span", { class: "card-v", "data-timer": t.id }, mmss(left)), N.h("span", { class: "card-s" }, "Toca para cancelar")),
-        async () => { await N.api("/api/timers/" + t.id, { method: "DELETE" }).catch(() => {}); refresh(); }, "timer"));
+      const c = chip("timer", "timer", null, null);
+      c.append(N.h("span", {}, t.label + " "), N.h("strong", { "data-timer": t.id }, mmss(left)));
+      armTap(c, "Toca otra vez para cancelar el temporizador", async () => { await N.api("/api/timers/" + t.id, { method: "DELETE" }).catch(() => {}); refresh(); });
+      chips.push(c);
     }
-    for (const n of data.notes || []) {
-      if (n.kind === "voice") { cards.push(voiceCard(n)); continue; }
-      cards.push(card("note", "Para " + n.to, N.h("span", { class: "card-b" }, N.h("span", { class: "card-v sm" }, n.text), N.h("span", { class: "card-s" }, "Toca dos veces para quitar")), null, "note"));
-      const el = cards[cards.length - 1];
-      let armed = false;
-      el.addEventListener("click", async () => {
-        if (!armed) { armed = true; el.classList.add("armed"); setTimeout(() => { armed = false; el.classList.remove("armed"); }, 3000); return; }
-        await N.api("/api/notes/" + n.id, { method: "DELETE" }).catch(() => {});
-        refresh();
-      });
+    for (const d of (data.dates || []).filter((x) => x.inDays <= 1).slice(0, 2)) {
+      const kind = d.kind === "cumpleaños" ? "cumpleaños de " : d.kind === "aniversario" ? "aniversario: " : "";
+      chips.push(chip("date", "cake", (d.inDays === 0 ? "Hoy: " : "Mañana: ") + kind + d.name + (d.age ? ` (${d.age})` : ""), () => N.toast(d.title)));
     }
-    // Cumpleaños y fechas de la próxima semana
-    for (const d of (data.dates || []).slice(0, 2)) {
-      const when = d.inDays === 0 ? "¡Hoy!" : d.inDays === 1 ? "Mañana" : `En ${d.inDays} días`;
-      cards.push(card("date" + (d.inDays <= 1 ? " soon" : ""), d.kind === "cumpleaños" ? "Cumpleaños" : d.kind === "aniversario" ? "Aniversario" : "Fecha",
-        N.h("span", { class: "card-b" }, N.h("span", { class: "card-v sm" }, d.name + (d.age ? ` · ${d.age}` : "")), N.h("span", { class: "card-s" }, when)),
-        () => N.toast(d.title + " · " + new Date(d.date + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })), "cake"));
-    }
-    if (data.power) cards.push(powerCard(data.power));
-    const pending = (data.shopping || []).filter((i) => !i.done);
-    cards.push(card("shop", "Compra", N.h("span", { class: "card-b" },
-      N.h("span", { class: "card-v" }, String(pending.length)), N.h("span", { class: "card-s" }, pending.length ? pending.slice(0, 2).map((i) => i.text).join(", ") : "Lista vacía")), openList, "cart"));
     const g = (data.garbage || [])[0];
     if (g && g.inDays <= 7) {
-      const when = g.inDays === 0 ? "Hoy" : g.inDays === 1 ? "Mañana" : new Date(g.date + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" });
-      cards.push(card("garbage" + (g.inDays <= 1 ? " soon" : ""), "Basura", N.h("span", { class: "card-b" }, N.h("span", { class: "card-v sm" }, g.type), N.h("span", { class: "card-s" }, when.charAt(0).toUpperCase() + when.slice(1))), null, "recycle"));
+      const day = g.inDays === 0 ? "hoy" : g.inDays === 1 ? "mañana" : "el " + new Date(g.date + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" });
+      chips.push(chip("garbage" + (g.inDays <= 1 ? " soon" : ""), "recycle", `Basura ${day}: ${g.type}`, null));
     }
-    box.replaceChildren(...cards);
-    fitCards();
+
+    // ---- tres tarjetas fijas ----
+    const tiles = [notesTile(), shopTile(), data.power ? powerCard(data.power) : emptyTile("bolt", "Luz ahora", "Sin datos del precio")];
+
+    $("pills").replaceChildren(...chips);
+    box.replaceChildren(N.h("div", { class: "tiles" }, ...tiles));
+    fitChips();
     startTick();
+    refreshNotesSheet();
   }
 
-  // Solo las tarjetas que caben (las primeras son las más importantes)
-  function fitCards() {
-    const box = $("info");
-    for (const c of box.children) c.hidden = false;
-    const right = box.getBoundingClientRect().right;
-    for (const c of box.children) if (c.getBoundingClientRect().right > right + 1) c.hidden = true;
+  function chip(cls, icon, text, onclick) {
+    return N.h("button", { class: "pill " + cls, type: "button", onclick }, N.h("span", { class: "ic", html: N.ICON[icon] }), text);
   }
+  // Toque doble para acciones que borran algo
+  function armTap(el, hint, run) {
+    let armed = false;
+    el.addEventListener("click", () => {
+      if (!armed) { armed = true; el.classList.add("armed"); N.toast(hint); setTimeout(() => { armed = false; el.classList.remove("armed"); }, 3000); return; }
+      run();
+    });
+  }
+  function badge(el, n) { el.firstChild.append(N.h("span", { class: "badge" + (n ? "" : " zero") }, String(n))); return el; }
+  function emptyTile(icon, title, text) {
+    return card("tile-empty", title, N.h("span", { class: "card-b" }, N.h("span", { class: "card-s" }, text)), null, icon);
+  }
+
+  // Notas: las de voz primero, luego las escritas (las más nuevas arriba)
+  function sortedNotes() {
+    const notes = (data.notes || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+    return [...notes.filter((n) => n.kind === "voice"), ...notes.filter((n) => n.kind !== "voice")];
+  }
+  const SHOW = 2;
+  function notesTile() {
+    const notes = sortedNotes();
+    const unheard = notes.some((n) => n.kind === "voice" && !(plays[n.id] > 0));
+    const rows = notes.slice(0, SHOW).map(noteRow);
+    const more = notes.length - SHOW;
+    const body = N.h("span", { class: "card-b rows" },
+      ...(rows.length ? rows : [N.h("span", { class: "row empty-row" }, "Sin notas")]),
+      N.h("span", { class: "card-s" }, more > 0 ? `+${more} más · toca para verlas` : notes.length ? "Toca para ver o quitar" : "Se dejan desde el móvil o por voz"));
+    const c = card("notes" + (unheard ? " unheard" : ""), "Notas", body, (e) => {
+      const p = e.target && e.target.closest && e.target.closest("[data-play]");
+      if (p) { const n = notes.find((x) => x.id === p.dataset.play); if (n) return toggleVoice(n); }
+      openNotes();
+    }, "note");
+    return badge(c, notes.length);
+  }
+  function noteRow(n) {
+    if (n.kind !== "voice") return N.h("span", { class: "row" }, N.h("b", {}, n.to + ": "), n.text);
+    const isPlaying = playing && playing.id === n.id;
+    const count = plays[n.id] || 0;
+    const label = isPlaying ? (count + 1 >= MAX_PLAYS ? "Última vez…" : "Reproduciendo…")
+      : `Voz para ${n.to} · ${secs(n.seconds || 0)}` + (count ? " · 1 de 2" : "");
+    return N.h("span", { class: "row voice" + (isPlaying ? " playing" : "") + (count ? "" : " new") },
+      N.h("span", { class: "vplay", "data-play": n.id, role: "button", "aria-label": isPlaying ? "Parar" : "Escuchar nota de voz" }, isPlaying ? "■" : "▶"),
+      N.h("span", { class: "vtxt" }, label));
+  }
+  function toggleVoice(n) {
+    if (playing && playing.id === n.id) return stopVoice();
+    playVoice(n);
+  }
+
+  function shopTile() {
+    const pending = (data.shopping || []).filter((i) => !i.done);
+    const rows = pending.slice(0, SHOW).map((i) => N.h("span", { class: "row" }, i.text));
+    const more = pending.length - SHOW;
+    const body = N.h("span", { class: "card-b rows" },
+      ...(rows.length ? rows : [N.h("span", { class: "row empty-row" }, "Lista vacía")]),
+      N.h("span", { class: "card-s" }, more > 0 ? `+${more} más · toca para abrir` : "Toca para abrir la lista"));
+    return badge(card("shop", "Compra", body, openList, "cart"), pending.length);
+  }
+
+  // En la franja solo caben unas pocas: las primeras son las más importantes, y lo que
+  // no cabe se resume en un «+N» que lo muestra al tocarlo (nada desaparece sin avisar)
+  function fitChips() {
+    const row = $("pills");
+    row.querySelectorAll(".pill-more").forEach((e) => e.remove());
+    const kids = [...row.children];
+    for (const c of kids) c.hidden = false;
+    if (!kids.length) return;
+    const right = row.getBoundingClientRect().right + 1;
+    const hidden = kids.filter((c) => c.getBoundingClientRect().right > right);
+    if (!hidden.length) return;
+    hidden.forEach((c) => { c.hidden = true; });
+    const more = N.h("button", { class: "pill pill-more", type: "button", onclick: () => N.toast(hidden.map((c) => c.textContent.trim()).join(" · ")) }, "+" + hidden.length);
+    row.append(more);
+    while (more.getBoundingClientRect().right > right) {
+      const vis = kids.filter((c) => !c.hidden);
+      if (!vis.length) break;
+      const last = vis[vis.length - 1];
+      last.hidden = true; hidden.unshift(last);
+      more.textContent = "+" + hidden.length;
+    }
+  }
+
 
   // ---------- temporizadores ----------
   function startTick() {
@@ -240,6 +324,34 @@
           const j = await N.api("/api/shopping/comprados", { method: "DELETE" }).catch(() => null);
           if (j) { data.shopping = j.items; render(); openList(); }
         } }, "Quitar comprados"), N.h("span")));
+  }
+
+  // Hoja con todas las notas: escuchar las de voz y quitar cualquiera
+  function openNotes() {
+    const notes = sortedNotes();
+    const rows = notes.map((n) => {
+      const del = N.h("button", { class: "btn ghost note-del", type: "button", onclick: () => removeNote(n) }, "Quitar");
+      const who = "Para " + n.to + (n.from ? " · de " + n.from : "");
+      if (n.kind === "voice") {
+        const isPlaying = playing && playing.id === n.id;
+        const count = plays[n.id] || 0;
+        const state = isPlaying ? (count + 1 >= MAX_PLAYS ? "Última vez… luego se borra" : "Reproduciendo…") : count ? "Escuchada 1 vez: la próxima se borra" : "Sin escuchar";
+        return N.h("li", { class: "note-row voice" + (isPlaying ? " playing" : "") },
+          N.h("button", { class: "vplay big", type: "button", "aria-label": isPlaying ? "Parar" : "Escuchar", onclick: () => toggleVoice(n) }, isPlaying ? "■" : "▶"),
+          N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, "Nota de voz · " + secs(n.seconds || 0)), N.h("span", { class: "note-meta" }, who + " · " + state)),
+          del);
+      }
+      return N.h("li", { class: "note-row" },
+        N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, n.text), N.h("span", { class: "note-meta" }, who)),
+        del);
+    });
+    openSheet("Notas",
+      N.h("p", { class: "sheet-sub" }, "Una nota de voz se puede escuchar 2 veces y luego se borra sola."),
+      rows.length ? N.h("ul", { class: "note-list" }, ...rows) : N.h("p", { class: "empty" }, "No hay notas. Se dejan desde el móvil o por voz: «Oye NEXUS, deja una nota para Ana: …»."));
+    sheet.dataset.kind = "notes";
+  }
+  function refreshNotesSheet() {
+    if (sheet && sheet.dataset.kind === "notes") openNotes();
   }
 
   // Música y vídeo
@@ -363,28 +475,6 @@
     try { localStorage.setItem("nexus.plays", JSON.stringify(plays)); } catch { /* sin almacenamiento */ }
   }
 
-  function voiceCard(n) {
-    const isPlaying = playing && playing.id === n.id;
-    const count = plays[n.id] || 0;
-    const wasHeard = count > 0;
-    const meta = (n.from ? "De " + n.from + " · " : "") + secs(n.seconds || 0);
-    let foot;
-    if (isPlaying) foot = N.h("span", { class: "card-s" }, count + 1 >= MAX_PLAYS ? "Última vez… luego se borra" : "Reproduciendo… toca para parar");
-    else if (wasHeard) foot = N.h("span", { class: "vn-acts" },
-      N.h("span", { class: "vn-act", "data-act": "play" }, "↻ Otra vez (última)"),
-      N.h("span", { class: "vn-act del", "data-act": "del" }, "✕ Quitar"));
-    else foot = N.h("span", { class: "card-s" }, "Toca para escuchar");
-    const c = card("note voice" + (wasHeard ? "" : " unheard") + (isPlaying ? " playing" : ""), "Nota de voz · para " + n.to,
-      N.h("span", { class: "card-b" }, N.h("span", { class: "card-v sm" }, N.h("span", { class: "vn-wave", "aria-hidden": "true" }, N.h("i"), N.h("i"), N.h("i"), N.h("i"), N.h("i")), meta), foot),
-      (e) => {
-        const act = e.target && e.target.closest && e.target.closest("[data-act]");
-        if (act && act.dataset.act === "del") return removeNote(n);
-        if (playing && playing.id === n.id) return stopVoice();
-        playVoice(n);
-      }, "mic");
-    return c;
-  }
-
   async function playVoice(n) {
     stopVoice();
     if (window.NexusWake) window.NexusWake.pause(); // que "Oye NEXUS" no se escuche a sí mismo
@@ -478,7 +568,9 @@
     connectLive();
     setInterval(refresh, REFRESH_MS);
     if (hasMediaBridge()) setInterval(() => { if (document.visibilityState === "visible") pollMedia(); }, 2000);
-    window.addEventListener("resize", fitCards);
+    window.addEventListener("resize", fitChips);
+    // La línea de la alarma cambia de ancho al cargarse: volver a medir la franja de avisos
+    if (window.ResizeObserver) new ResizeObserver(() => fitChips()).observe($("pills"));
     // Al salir a Spotify/YouTube, el micrófono se suelta (y vuelve al regresar)
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   }
