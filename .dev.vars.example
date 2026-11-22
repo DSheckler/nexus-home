@@ -1,0 +1,6 @@
+# Copia este archivo como .dev.vars (está excluido de git) para probar en local con `npm run dev`.
+# Genera cada clave con:  node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+NEXUS_TOKEN=pon-aqui-una-clave-hex-de-48-caracteres
+FAMILY_TOKEN=pon-aqui-otra-clave-hex-distinta
+# Opcional: configuración de tu casa (ver src/config.js)
+# NEXUS_HOME={"city":"Göteborg","lat":57.7089,"lon":11.9746,"zone":"SE3","family":["Ana","Luis","Sofía"]}

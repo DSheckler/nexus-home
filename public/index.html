@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#15171a">
+  <title>NEXUS Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Outfit:wght@200;300&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main class="app" id="app">
+
+    <!-- Hora, fecha y próxima alarma -->
+    <section class="time-block">
+      <!-- Estado de la tablet: Wi-Fi, batería y avisos de conexión -->
+      <div class="topline">
+        <span class="dev" id="dev" aria-label="Estado de la tablet"></span>
+        <span class="sys" id="sys"><i class="dot"></i><span>Comprobando conexión</span></span>
+      </div>
+      <div class="clock" id="clock">--:--</div>
+      <div class="date" id="date"></div>
+      <div class="alarm" id="alarm"></div>
+      <div class="info" id="info" aria-live="polite"></div>
+    </section>
+
+    <!-- Clima y agenda -->
+    <aside class="side">
+      <section class="panel weather" id="weather"></section>
+      <section class="panel agenda" id="agenda"></section>
+    </aside>
+
+    <!-- Línea del día: luz solar + actividades -->
+    <section class="timeline" id="timeline" aria-label="Línea del día"></section>
+
+    <!-- Conversación: ocupa el lugar de la línea del día mientras se habla -->
+    <section class="caption" id="caption" aria-live="polite">
+      <p class="cap-user" id="capUser"></p>
+      <p class="cap-reply" id="capReply"></p>
+      <form class="cap-form" id="capForm" hidden>
+        <input class="cap-input" id="capInput" type="text" maxlength="300" placeholder="Escribe una pregunta…" aria-label="Pregunta">
+        <button class="btn primary" type="submit">Enviar</button>
+      </form>
+    </section>
+
+    <!-- Asistente y accesos rápidos -->
+    <footer class="bar">
+      <button class="assistant" id="assistant" type="button">
+        <span class="orb" aria-hidden="true"></span>
+        <span id="assistantText">Toca para hablar con NEXUS</span>
+      </button>
+      <button class="icon-btn" id="micBtn" type="button" aria-label="Escucha «Oye NEXUS»" aria-pressed="true"></button>
+      <button class="icon-btn" id="keyboardBtn" type="button" aria-label="Escribir al asistente"></button>
+      <div class="bar-right">
+        <nav class="actions" id="actions"></nav>
+      </div>
+    </footer>
+
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/alarms.js"></script>
+  <script src="js/mic.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/wake.js"></script>
+  <script src="js/home.js"></script>
+  <script src="js/weather.js"></script>
+  <script src="js/agenda.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

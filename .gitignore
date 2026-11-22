@@ -1,0 +1,23 @@
+# Dependencias y estado local
+node_modules/
+.wrangler/
+*.log
+
+# Claves y configuración privada (NUNCA subir)
+.dev.vars
+.env
+secrets/
+android/host.txt
+
+# Compilados de la app Android
+android/build/
+android/nexus.apk
+android/nexus.apk.idsig
+android/res/mipmap-xhdpi/ic_launcher.png
+
+# Archivos personales o de pruebas
+.claude/
+apps-desactivadas.txt
+muestras-voz/
+NOTAS-PRIVADAS.md
+capturas/

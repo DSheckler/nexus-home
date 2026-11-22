@@ -1,0 +1,15 @@
+{
+  "name": "nexus-home",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NEXUS Home - panel de control del hogar para tablet (Cloudflare Workers + Workers AI)",
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "tablet:reverse": "adb reverse tcp:8787 tcp:8787"
+  },
+  "devDependencies": {
+    "wrangler": "^4.86.0"
+  }
+}
