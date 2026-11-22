@@ -29,7 +29,7 @@
     h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
     .who { font-size: 15px; color: var(--muted); background: none; border: 0; padding: 4px 0; }
     .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--line); padding: 4px; border-radius: 12px; margin: 6px 0 18px; }
-    .tabs button { border: 0; border-radius: 9px; padding: 9px; font: inherit; font-weight: 500; background: transparent; color: var(--text); }
+    .tabs button { border: 0; border-radius: 9px; padding: 9px 2px; font-size: 14px !important; font: inherit; font-weight: 500; background: transparent; color: var(--text); }
     .tabs button[aria-selected="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
     .panel { background: var(--panel); border-radius: 16px; overflow: hidden; }
     ul { list-style: none; margin: 0; padding: 0; }
@@ -74,6 +74,25 @@
     .menu-li .d { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: capitalize; margin-bottom: 4px; }
     .menu-li.today .d { color: var(--sun-ink); }
     .menu-li input { width: 100%; margin-top: 4px; box-sizing: border-box; }
+    .h-sec { background: var(--panel); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .h-sec h2 { font-size: 16px; margin: 0 0 8px; }
+    .h-sec .meta2 { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+    .h-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+    .h-row:first-of-type { border-top: 0; }
+    .h-row .grow { flex: 1; min-width: 0; }
+    .h-row .sub { display: block; font-size: 13px; color: var(--muted); }
+    .h-sec input, .h-sec select { box-sizing: border-box; }
+    .sch { display: grid; grid-template-columns: 74px 1fr 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .sch .bring { grid-column: 1 / -1; }
+    .sch b { font-size: 14px; }
+    .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
+    .two > * { min-width: 0; } .two input, .two select { width: 100%; min-width: 0; }
+    .sw { flex: none; width: 52px; height: 30px; border-radius: 99px; border: 0; background: var(--line); position: relative; }
+    .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left .15s; }
+    .sw[aria-checked="true"] { background: var(--sun); }
+    .sw[aria-checked="true"]::after { left: 25px; }
+    .small-btn { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 600; background: var(--sun); color: var(--sun-ink); }
+    .ghost-btn { flex: none; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: inherit; background: none; color: var(--text); }
     .chore-done { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 600; background: var(--sun); color: var(--sun-ink); }
     li.due .txt { color: var(--sun-ink); font-weight: 600; }
     label.link { text-align: center; cursor: pointer; }
@@ -103,6 +122,7 @@
       <button type="button" role="tab" id="tabMenu" aria-selected="false">Menú</button>
       <button type="button" role="tab" id="tabChores" aria-selected="false">Tareas</button>
       <button type="button" role="tab" id="tabPower" aria-selected="false">Luz</button>
+      <button type="button" role="tab" id="tabHouse" aria-selected="false">Casa</button>
     </div>
 
     <section id="shop">
@@ -149,6 +169,52 @@
       <p class="pw-note">Los turnos entre personas se eligen en el panel. Al marcarla hecha, pasa al siguiente.</p>
     </section>
 
+    <section id="house" class="hidden">
+      <div class="h-sec">
+        <h2>Plantas</h2>
+        <div id="hPlants"></div>
+      </div>
+      <div class="h-sec" id="hDevSec">
+        <h2>Luces y enchufes</h2>
+        <div id="hDevices"></div>
+      </div>
+      <div class="h-sec">
+        <h2>Colegio</h2>
+        <p class="meta2">Por la mañana el panel muestra qué llevar hoy y por la tarde lo de mañana.</p>
+        <input id="schName" type="text" maxlength="30" placeholder="Nombre" aria-label="Nombre" style="width:100%;margin-bottom:8px">
+        <div id="hSchool"></div>
+        <button class="btn" id="schSave" type="button" style="width:100%">Guardar horario</button>
+      </div>
+      <div class="h-sec">
+        <h2>Familia lejos</h2>
+        <p class="meta2">Su hora sale arriba en el panel.</p>
+        <div id="hAbroad"></div>
+        <div class="two">
+          <input id="abName" type="text" maxlength="24" placeholder="Nombre (p. ej. Abuelos)" aria-label="Nombre">
+          <select id="abZone" aria-label="País"></select>
+        </div>
+        <button class="ghost-btn" id="abAdd" type="button" style="width:100%">Añadir</button>
+      </div>
+      <div class="h-sec">
+        <h2>Vacaciones</h2>
+        <p class="meta2" id="vacState">El panel se atenúa, las alarmas no suenan y no hay resúmenes mientras estéis fuera.</p>
+        <div class="two">
+          <label>Ida<input id="vacFrom" type="date" style="width:100%"></label>
+          <label>Vuelta<input id="vacTo" type="date" style="width:100%"></label>
+        </div>
+        <div class="two">
+          <button class="btn" id="vacSave" type="button">Guardar</button>
+          <button class="ghost-btn" id="vacOff" type="button">Quitar</button>
+        </div>
+      </div>
+      <div class="h-sec">
+        <h2>Más</h2>
+        <button class="link" id="inviteBtn" type="button">Invitar a alguien (enlace de 24 h)</button>
+        <label class="link" id="vcfLabel" for="vcfFile">Importar cumpleaños de Contactos (archivo .vcf)</label>
+        <input id="vcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" class="hidden">
+      </div>
+    </section>
+
     <section id="power" class="hidden">
       <div class="pw-cards">
         <div class="pw-card"><div class="pw-v" id="pwNow">–</div><div class="pw-l" id="pwNowL">este mes hasta hoy</div></div>
@@ -167,9 +233,6 @@
       <p class="pw-h">Meses con factura</p>
       <div class="panel"><ul id="pwList"></ul></div>
     </section>
-    <button class="link" id="inviteBtn" type="button">Invitar a alguien (enlace de 24 h)</button>
-    <label class="link" id="vcfLabel" for="vcfFile">Importar cumpleaños de Contactos (archivo .vcf)</label>
-    <input id="vcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" class="hidden">
     <p class="status" id="status"></p>
   </main>
 
@@ -370,6 +433,7 @@
           if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
           if (msg.type === "powerMonth" && msg.powerMonth) renderPower(msg.powerMonth);
           if (msg.type === "chores" && Array.isArray(msg.chores)) renderChores(msg.chores);
+          if (msg.type === "plants" && Array.isArray(msg.plants) && store.get("tab") === "house") renderPlants(msg.plants);
           if (msg.type === "menu" && Array.isArray(msg.menu) && !document.activeElement.closest("#menuList")) renderMenu(msg.menu);
         };
         live.onclose = () => { clearInterval(livePing); live = null; if (document.visibilityState === "visible") { setTimeout(connectLive, liveRetry); liveRetry = Math.min(liveRetry * 2, 60000); } };
@@ -446,6 +510,107 @@
         setTimeout(() => ($("status").textContent = ""), 4000);
       });
 
+      // ---------- Casa: plantas, luces, colegio, familia lejos y vacaciones ----------
+      const fShortDay = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+      const niceDay = (k) => fShortDay.format(new Date(k + "T12:00:00Z"));
+      const flash = (t) => { $("status").textContent = t; setTimeout(() => ($("status").textContent = ""), 3000); };
+      function renderPlants(list) {
+        const box = $("hPlants"); box.replaceChildren();
+        if (!list.length) { box.append(el("p", "meta2", "No hay plantas apuntadas (se añaden desde el panel).")); return; }
+        for (const p of list) {
+          const row = el("div", "h-row");
+          const txt = el("span", "grow", p.name);
+          txt.append(el("span", "sub", p.pending ? (p.late ? `Atrasado ${p.late} días` : "Toca regar hoy") : `Próximo riego: ${niceDay(p.due)}`));
+          const b = el("button", "small-btn", "Regadas"); b.type = "button";
+          b.addEventListener("click", async () => { try { renderPlants((await api("/api/plants/" + p.id + "/water", { method: "POST" })).plants); flash("¡Regadas!"); } catch { /* */ } });
+          row.append(txt, b); box.append(row);
+        }
+      }
+      function renderDevices(j) {
+        const box = $("hDevices"); box.replaceChildren();
+        if (!j || !j.configured || !j.devices || !j.devices.length) { box.append(el("p", "meta2", "Aún no hay dispositivos. Cuando tengáis luces o enchufes Shelly, se controlan desde aquí.")); return; }
+        for (const d of j.devices) {
+          const row = el("div", "h-row");
+          const txt = el("span", "grow", d.name);
+          txt.append(el("span", "sub", (d.room ? d.room + " · " : "") + (d.online ? (d.on ? "Encendido" : "Apagado") : "Desconectado")));
+          const sw = el("button", "sw"); sw.type = "button"; sw.setAttribute("role", "switch"); sw.setAttribute("aria-checked", String(!!d.on)); sw.setAttribute("aria-label", d.name);
+          if (!d.online) sw.disabled = true;
+          sw.addEventListener("click", async () => {
+            const on = sw.getAttribute("aria-checked") !== "true";
+            sw.setAttribute("aria-checked", String(on));
+            try { await api("/api/devices/" + d.key, { method: "POST", body: { on } }); } catch { sw.setAttribute("aria-checked", String(!on)); flash("No se pudo cambiar"); }
+          });
+          row.append(txt, sw); box.append(row);
+        }
+      }
+      const SCH_DAYS = [["1", "Lunes"], ["2", "Martes"], ["3", "Miércoles"], ["4", "Jueves"], ["5", "Viernes"]];
+      function renderSchool(s) {
+        $("schName").value = s.name || "";
+        const box = $("hSchool"); box.replaceChildren();
+        for (const [k, label] of SCH_DAYS) {
+          const d = (s.days || {})[k] || {};
+          const g = el("div", "sch"); g.dataset.day = k;
+          const st = el("input"); st.type = "time"; st.value = d.start || ""; st.className = "st"; st.setAttribute("aria-label", label + " entrada");
+          const en = el("input"); en.type = "time"; en.value = d.end || ""; en.className = "en"; en.setAttribute("aria-label", label + " salida");
+          const br = el("input"); br.type = "text"; br.maxLength = 200; br.placeholder = "Qué llevar el " + label.toLowerCase(); br.value = (d.bring || []).join(", "); br.className = "bring";
+          g.append(el("b", "", label), st, en, br); box.append(g);
+        }
+      }
+      $("schSave").addEventListener("click", async () => {
+        const days = {};
+        for (const g of $("hSchool").querySelectorAll(".sch")) days[g.dataset.day] = { start: g.querySelector(".st").value, end: g.querySelector(".en").value, bring: g.querySelector(".bring").value };
+        try { renderSchool((await api("/api/school", { method: "PUT", body: { name: $("schName").value, days } })).school); flash("Horario guardado"); }
+        catch (err) { flash(err.message || "No se pudo guardar"); }
+      });
+      const ZONES = [["Chile", "America/Santiago"], ["Argentina", "America/Argentina/Buenos_Aires"], ["España", "Europe/Madrid"], ["México", "America/Mexico_City"],
+        ["Colombia", "America/Bogota"], ["Perú", "America/Lima"], ["Uruguay", "America/Montevideo"], ["Venezuela", "America/Caracas"], ["Ecuador", "America/Guayaquil"],
+        ["Bolivia", "America/La_Paz"], ["Paraguay", "America/Asuncion"], ["Brasil", "America/Sao_Paulo"], ["Cuba", "America/Havana"], ["Nueva York", "America/New_York"], ["Londres", "Europe/London"]];
+      for (const [n, tz] of ZONES) $("abZone").append(new Option(n, tz));
+      let abroad = [];
+      const timeIn = (tz) => new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
+      function renderAbroad(list) {
+        abroad = list;
+        const box = $("hAbroad"); box.replaceChildren();
+        for (const [i, x] of list.entries()) {
+          const row = el("div", "h-row");
+          const txt = el("span", "grow", x.name); txt.append(el("span", "sub", "Allí son las " + timeIn(x.tz)));
+          const del = el("button", "del", "✕"); del.type = "button"; del.setAttribute("aria-label", "Quitar");
+          del.addEventListener("click", () => saveAbroad(abroad.filter((_, j) => j !== i)));
+          row.append(txt, del); box.append(row);
+        }
+        $("abAdd").disabled = list.length >= 3;
+      }
+      async function saveAbroad(list) {
+        try { renderAbroad((await api("/api/abroad", { method: "PUT", body: { abroad: list } })).abroad); } catch (err) { flash(err.message || "No se pudo guardar"); }
+      }
+      $("abAdd").addEventListener("click", () => {
+        const tz = $("abZone").value;
+        const name = $("abName").value.trim() || ZONES.find((z) => z[1] === tz)[0];
+        $("abName").value = "";
+        saveAbroad([...abroad, { name, tz }]);
+      });
+      function renderVacation(v) {
+        $("vacFrom").value = v ? v.from : ""; $("vacTo").value = v ? v.to : "";
+        $("vacState").textContent = v ? `De vacaciones del ${niceDay(v.from)} al ${niceDay(v.to)}.` : "El panel se atenúa, las alarmas no suenan y no hay resúmenes mientras estéis fuera.";
+        $("vacOff").disabled = !v;
+      }
+      $("vacSave").addEventListener("click", async () => {
+        try { renderVacation((await api("/api/vacation", { method: "PUT", body: { from: $("vacFrom").value, to: $("vacTo").value } })).vacation); flash("Vacaciones guardadas. ¡Buen viaje!"); }
+        catch (err) { flash(err.message || "Revisa las fechas"); }
+      });
+      $("vacOff").addEventListener("click", async () => {
+        try { await api("/api/vacation", { method: "DELETE" }); renderVacation(null); flash("Modo vacaciones quitado"); } catch { /* */ }
+      });
+      async function loadHouse() {
+        const safe = (p) => p.catch(() => null);
+        const [pl, dv, sc, ab, va] = await Promise.all([safe(api("/api/plants")), safe(api("/api/devices")), safe(api("/api/school")), safe(api("/api/abroad")), safe(api("/api/vacation"))]);
+        if (pl) renderPlants(pl.plants);
+        renderDevices(dv);
+        if (sc) renderSchool(sc.school);
+        if (ab) renderAbroad(ab.abroad);
+        if (va) renderVacation(va.vacation);
+      }
+
       // ---------- Tareas de la casa ----------
       function renderChores(list) {
         const ul = $("choreList"); ul.replaceChildren();
@@ -521,7 +686,7 @@
 
       // ---------- Pestañas y actualización ----------
       function tab(which) {
-        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["menu", "tabMenu"], ["chores", "tabChores"], ["power", "tabPower"]]) {
+        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["menu", "tabMenu"], ["chores", "tabChores"], ["power", "tabPower"], ["house", "tabHouse"]]) {
           $(t).classList.toggle("hidden", t !== which);
           $(id).setAttribute("aria-selected", String(t === which));
         }
@@ -529,12 +694,14 @@
         if (which === "power") loadPower();
         if (which === "chores") loadChores();
         if (which === "menu") loadMenu();
+        if (which === "house") loadHouse();
       }
       $("tabShop").addEventListener("click", () => tab("shop"));
       $("tabNotes").addEventListener("click", () => tab("notes"));
       $("tabPower").addEventListener("click", () => tab("power"));
       $("tabChores").addEventListener("click", () => tab("chores"));
       $("tabMenu").addEventListener("click", () => tab("menu"));
+      $("tabHouse").addEventListener("click", () => tab("house"));
       tab(store.get("tab") || "shop");
 
       async function load() {
@@ -546,8 +713,8 @@
       // La familia viene de la configuración del servidor
       api("/api/config").then((c) => {
         if (c.scope === "guest") {
-          for (const id of ["tabChores", "tabPower", "tabMenu", "recBtn", "recHint", "inviteBtn", "vcfLabel"]) $(id).classList.add("hidden");
-          if (["chores", "power", "menu"].includes(store.get("tab"))) tab("shop");
+          for (const id of ["tabChores", "tabPower", "tabMenu", "tabHouse", "recBtn", "recHint"]) $(id).classList.add("hidden");
+          if (["chores", "power", "menu", "house"].includes(store.get("tab"))) tab("shop");
           const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de la compra y dejar notas.");
           $("app").prepend(note);
         }

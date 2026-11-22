@@ -21,7 +21,7 @@ import { getAir, getAurora } from "./outdoor.js";
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.15.1";
+const VERSION = "1.15.2";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -148,7 +148,7 @@ async function scopeOf(request, env) {
   if (await P.isGuest(env, key)) return "guest";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop))$/;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?)$/i;
 // Invitados: solo la lista de la compra y las notas de texto
 const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
@@ -179,6 +179,7 @@ async function handleApi(request, env, url, ctx) {
   if (!scope) return json({ ok: false, error: "unauthorized" }, 401);
   if (scope === "family" && !FAMILY_PATHS.test(path)) return json({ ok: false, error: "forbidden" }, 403);
   if (scope === "guest" && !GUEST_PATHS.test(path)) return json({ ok: false, error: "forbidden" }, 403);
+  if (scope === "family" && path === "/api/devices" && method !== "GET") return json({ ok: false, error: "forbidden" }, 403);
 
   if (path === "/api/weather" && method === "GET") {
     return json({ ok: true, ...(await getWeather()) }, 200, 300);
