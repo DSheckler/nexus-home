@@ -56,6 +56,15 @@
     .msg { padding: 40px 16px; text-align: center; color: var(--muted); }
     .hidden { display: none !important; }
     .status { text-align: center; font-size: 13px; color: var(--muted); margin-top: 16px; min-height: 18px; }
+    .rec { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin-top: 10px;
+      font: inherit; font-weight: 600; border: 2px solid var(--sun); border-radius: 12px; padding: 12px 18px; background: none; color: var(--text); }
+    .rec .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
+    .rec.on { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .rec.on .dot { background: #fff; animation: blink 1s steps(2) infinite; }
+    .rec:disabled { opacity: .5; }
+    @keyframes blink { 50% { opacity: .2; } }
+    .play { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--sun); color: var(--sun-ink); font-size: 15px; padding: 0; }
+    .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
   </style>
 </head>
 <body>
@@ -99,6 +108,8 @@
         </div>
         <button class="btn" type="submit">Dejar nota en el panel</button>
       </form>
+      <button class="rec" id="recBtn" type="button"><span class="dot"></span><span id="recText">Grabar nota de voz</span></button>
+      <p class="hint" id="recHint">Toca para empezar y otra vez para enviarla (máx. 1 minuto).</p>
     </section>
     <p class="status" id="status"></p>
   </main>
@@ -186,7 +197,12 @@
         if (!notes.length) { ul.append(el("li", "empty", "No hay notas en el panel")); return; }
         for (const n of notes.slice().reverse()) {
           const li = el("li");
-          const txt = el("span", "txt", n.text);
+          if (n.kind === "voice") {
+            const play = el("button", "play", "▶"); play.type = "button"; play.setAttribute("aria-label", "Escuchar nota de voz");
+            play.addEventListener("click", () => playVoice(n, play));
+            li.append(play);
+          }
+          const txt = el("span", "txt", n.kind === "voice" ? "Nota de voz · " + Math.floor(n.seconds / 60) + ":" + String(n.seconds % 60).padStart(2, "0") : n.text);
           txt.append(el("span", "meta", "Para " + n.to + (n.from ? " · de " + n.from : "")));
           const del = el("button", "del", "×"); del.type = "button"; del.setAttribute("aria-label", "Quitar nota");
           del.addEventListener("click", async () => renderNotes((await api("/api/notes/" + n.id, { method: "DELETE" })).notes));
@@ -204,6 +220,101 @@
         setTimeout(() => ($("status").textContent = ""), 2500);
       });
 
+      // ---------- Notas de voz ----------
+      let player = null;
+      async function playVoice(n, btn) {
+        if (player) { player.audio.pause(); URL.revokeObjectURL(player.url); const same = player.id === n.id; player.btn.textContent = "▶"; player = null; if (same) return; }
+        btn.textContent = "…";
+        try {
+          const r = await fetch("/api/notes/" + n.id + "/audio", { headers: { Authorization: "Bearer " + key } });
+          if (!r.ok) throw new Error();
+          const url = URL.createObjectURL(await r.blob());
+          const audio = new Audio(url);
+          player = { id: n.id, audio, url, btn };
+          audio.onended = () => { btn.textContent = "▶"; URL.revokeObjectURL(url); player = null; };
+          btn.textContent = "■";
+          await audio.play();
+        } catch { btn.textContent = "▶"; player = null; $("status").textContent = "No se pudo reproducir la nota"; }
+      }
+
+      const MAX_REC = 60;
+      let rec = null; // { recorder, chunks, stream, start, timer }
+      const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+      if (!canRecord) { $("recBtn").disabled = true; $("recHint").textContent = "Este navegador no permite grabar audio."; }
+      function pickMime() {
+        for (const t of ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]) {
+          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+        }
+        return "";
+      }
+      async function startRec() {
+        let stream;
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+        catch { $("status").textContent = "Permite el micrófono para grabar notas de voz"; return; }
+        const mime = pickMime();
+        const recorder = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : undefined);
+        rec = { recorder, chunks: [], stream, start: Date.now(), timer: null };
+        recorder.ondataavailable = (e) => { if (e.data && e.data.size) rec.chunks.push(e.data); };
+        recorder.onstop = sendRec;
+        recorder.start(1000);
+        $("recBtn").classList.add("on");
+        const tickRec = () => {
+          const s = Math.floor((Date.now() - rec.start) / 1000);
+          $("recText").textContent = "Grabando " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") + " · toca para enviar";
+          if (s >= MAX_REC) stopRec();
+        };
+        tickRec(); rec.timer = setInterval(tickRec, 250);
+      }
+      function stopRec() {
+        if (!rec || rec.recorder.state === "inactive") return;
+        clearInterval(rec.timer);
+        rec.recorder.stop();
+        rec.stream.getTracks().forEach((t) => t.stop());
+      }
+      async function sendRec() {
+        const r = rec; rec = null;
+        $("recBtn").classList.remove("on");
+        $("recText").textContent = "Grabar nota de voz";
+        const seconds = Math.max(1, Math.round((Date.now() - r.start) / 1000));
+        const type = (r.recorder.mimeType || (r.chunks[0] && r.chunks[0].type) || "audio/mp4");
+        const blob = new Blob(r.chunks, { type });
+        if (seconds < 1 || blob.size < 500) { $("status").textContent = "La grabación es demasiado corta"; return; }
+        $("recBtn").disabled = true; $("status").textContent = "Enviando nota de voz…";
+        try {
+          const res = await fetch("/api/notes/voice", {
+            method: "POST", body: blob,
+            headers: { Authorization: "Bearer " + key, "Content-Type": type, "X-Note-To": encodeURIComponent($("noteTo").value),
+              "X-Note-From": encodeURIComponent(store.get("who") || ""), "X-Note-Seconds": String(seconds) },
+          });
+          const j = await res.json();
+          if (!j.ok) throw new Error(j.error);
+          renderNotes(j.notes);
+          $("status").textContent = "Nota de voz enviada al panel";
+        } catch (e) { $("status").textContent = "No se pudo enviar: " + (e.message || "sin conexión"); }
+        $("recBtn").disabled = false;
+        setTimeout(() => ($("status").textContent = ""), 3000);
+      }
+      $("recBtn").addEventListener("click", () => (rec ? stopRec() : startRec()));
+
+      // ---------- Conexión en vivo: los cambios de otros llegan al momento ----------
+      let live = null, liveRetry = 2000, livePing = null;
+      function connectLive() {
+        if (!window.WebSocket || document.visibilityState !== "visible") return;
+        try { live = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/live", ["nexus", key]); }
+        catch { return; }
+        live.onopen = () => { liveRetry = 2000; clearInterval(livePing); livePing = setInterval(() => { try { live.send("ping"); } catch { /* */ } }, 25000); };
+        live.onmessage = (ev) => {
+          if (ev.data === "pong") return;
+          let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+          if (msg.type === "shopping" && Array.isArray(msg.items)) renderShop(msg.items);
+          if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
+        };
+        live.onclose = () => { clearInterval(livePing); live = null; if (document.visibilityState === "visible") { setTimeout(connectLive, liveRetry); liveRetry = Math.min(liveRetry * 2, 60000); } };
+        live.onerror = () => { try { live.close(); } catch { /* */ } };
+      }
+      connectLive();
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !live) connectLive(); });
+
       // ---------- Pestañas y actualización ----------
       function tab(which) {
         const shop = which === "shop";
@@ -218,7 +329,7 @@
       async function load() {
         try {
           const [s, n] = await Promise.all([api("/api/shopping"), api("/api/notes")]);
-          renderShop(s.items); renderNotes(n.notes);
+          renderShop(s.items); if (!player && !rec) renderNotes(n.notes);
         } catch (e) { if (e.message !== "auth") $("status").textContent = "Sin conexión"; }
       }
       // La familia viene de la configuración del servidor

@@ -76,17 +76,50 @@ export async function removeShopping(env, which) {
 // ---------- Notas familiares ----------
 export const listNotes = (env) => getList(env, "notes");
 
+const MAX_NOTES = 10;
+const VOICE_DAYS = 14;               // el audio de una nota de voz se borra solo a los 14 días
+export const VOICE_MAX_BYTES = 1.5 * 1024 * 1024;
+const voiceKey = (id) => "voice:" + id;
+
+// Guarda la lista y borra el audio de las notas de voz que salen de ella
+async function saveNotes(env, before, after) {
+  await putList(env, "notes", after);
+  const keep = new Set(after.map((n) => n.id));
+  await Promise.all(before.filter((n) => n.kind === "voice" && !keep.has(n.id)).map((n) => env.NEXUS_KV.delete(voiceKey(n.id)).catch(() => {})));
+}
+
 export async function addNote(env, { to, text, from }) {
   const notes = await listNotes(env);
   const n = { id: "n" + uid(), to: clip(to, 20) || "Todos", text: clip(text, 160), from: clip(from, 20), at: Date.now() };
   if (!n.text) throw new Error("La nota está vacía");
-  await putList(env, "notes", [...notes, n].slice(-10));
+  await saveNotes(env, notes, [...notes, n].slice(-MAX_NOTES));
   return n;
 }
 
+// Nota de voz: el audio va aparte en KV (las notas solo guardan sus datos)
+export async function addVoiceNote(env, { to, from, seconds, mime, audio }) {
+  if (!audio || audio.byteLength < 500) throw new Error("La grabación está vacía");
+  if (audio.byteLength > VOICE_MAX_BYTES) throw new Error("La nota de voz es demasiado larga");
+  if (!/^audio\/[a-z0-9.+-]+(;.*)?$/i.test(mime || "")) throw new Error("Formato de audio no válido");
+  const notes = await listNotes(env);
+  const n = {
+    id: "n" + uid(), kind: "voice", to: clip(to, 20) || "Todos", from: clip(from, 20), text: "Nota de voz",
+    seconds: Math.max(1, Math.min(120, Math.round(Number(seconds) || 0))), at: Date.now(),
+  };
+  await env.NEXUS_KV.put(voiceKey(n.id), audio, { expirationTtl: VOICE_DAYS * 86400, metadata: { mime: mime.split(";")[0] } });
+  await saveNotes(env, notes, [...notes, n].slice(-MAX_NOTES));
+  return n;
+}
+
+export async function getVoiceAudio(env, id) {
+  const r = await env.NEXUS_KV.getWithMetadata(voiceKey(id), "arrayBuffer");
+  return r && r.value ? { audio: r.value, mime: (r.metadata && r.metadata.mime) || "audio/mp4" } : null;
+}
+
 export async function deleteNote(env, id) {
-  const left = (await listNotes(env)).filter((n) => n.id !== id && id !== "all");
-  await putList(env, "notes", left);
+  const notes = await listNotes(env);
+  const left = notes.filter((n) => n.id !== id && id !== "all");
+  await saveNotes(env, notes, left);
   return left;
 }
 

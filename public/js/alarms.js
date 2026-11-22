@@ -483,6 +483,17 @@
     timerTick = setInterval(() => { if (!sheet || !document.contains(list)) return clearInterval(timerTick); renderActive(); }, 1000);
   }
 
+  // Aviso corto de "nota nueva": tres notas suaves ascendentes (no se confunde con alarma ni temporizador)
+  function chime() {
+    unlockAudio();
+    if (!audioReady()) return false;
+    const t = audio.currentTime + 0.05;
+    mallet(N5.G, t, 0.35, 0.9);
+    mallet(N5.C6, t + 0.16, 0.4, 1.0);
+    mallet(N5.E6, t + 0.32, 0.45, 1.4);
+    return true;
+  }
+
   // Prueba manual: hace sonar una alarma de ejemplo ahora
   function test() {
     start({ id: "test", time: N.now().hhmm, days: [], label: "Prueba de alarma", routine: true, enabled: true });
@@ -493,5 +504,5 @@
     document.addEventListener("pointerup", unlockAudio, { passive: true });
   }
 
-  window.NexusAlarms = { init, next, check, openSheet, test, ringNow: start };
+  window.NexusAlarms = { init, next, check, openSheet, test, ringNow: start, chime };
 })();

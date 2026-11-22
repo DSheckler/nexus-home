@@ -3,7 +3,13 @@
 (function () {
   "use strict";
 
-  const REFRESH_MS = 30 * 1000; // así lo que se añade desde los móviles aparece pronto
+  const REFRESH_MS = 30 * 1000; // copia de seguridad: lo normal es que los cambios lleguen al momento por la conexión en vivo
+  const LIVE_TRUST_MS = 90 * 1000; // tras un aviso en vivo, se fía de él (KV puede tardar en ponerse al día)
+  const liveAt = { shopping: 0, notes: 0 };
+  let knownNotes = null;      // ids de notas ya vistas (para sonar solo con las nuevas)
+  const MAX_PLAYS = 2;         // una nota de voz se escucha como mucho 2 veces y luego se borra sola
+  const plays = (() => { try { return JSON.parse(localStorage.getItem("nexus.plays") || "{}"); } catch { return {}; } })();
+  let playing = null;         // { id, audio, url }
   let N = null;
   let data = null;            // último /api/home
   let tick = null;            // reloj de los temporizadores
@@ -14,7 +20,14 @@
 
   // ---------- datos ----------
   async function refresh() {
-    try { data = await N.api("/api/home"); data.skew = Date.now() - data.now; } catch { /* se queda la última copia */ }
+    try {
+      const prev = data;
+      data = await N.api("/api/home");
+      data.skew = Date.now() - data.now;
+      // Lo recibido en vivo hace poco manda sobre la lectura de KV (que puede ir algo atrasada)
+      for (const k of ["shopping", "notes"]) if (prev && Date.now() - liveAt[k] < LIVE_TRUST_MS) data[k] = prev[k];
+      checkNewNotes(data.notes);
+    } catch { /* se queda la última copia */ }
     render();
     if (N.applyMode) N.applyMode(); // por si cambió el ajuste del modo noche
   }
@@ -132,6 +145,7 @@
         async () => { await N.api("/api/timers/" + t.id, { method: "DELETE" }).catch(() => {}); refresh(); }, "timer"));
     }
     for (const n of data.notes || []) {
+      if (n.kind === "voice") { cards.push(voiceCard(n)); continue; }
       cards.push(card("note", "Para " + n.to, N.h("span", { class: "card-b" }, N.h("span", { class: "card-v sm" }, n.text), N.h("span", { class: "card-s" }, "Toca dos veces para quitar")), null, "note"));
       const el = cards[cards.length - 1];
       let armed = false;
@@ -323,9 +337,145 @@
     sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body);
   }
 
+  // ---------- notas nuevas: sonido de aviso ----------
+  function checkNewNotes(notes) {
+    const ids = (notes || []).map((n) => n.id);
+    if (knownNotes) {
+      const fresh = (notes || []).filter((n) => !knownNotes.has(n.id));
+      if (fresh.length) announce(fresh[fresh.length - 1]);
+    }
+    knownNotes = new Set(ids);
+  }
+  function announce(n) {
+    if (document.body.classList.contains("night")) return; // de noche, sin sonido (se ve por la mañana)
+    if (document.querySelector(".ring")) return;            // no tapar una alarma que suena
+    if (window.NexusAlarms && window.NexusAlarms.chime) window.NexusAlarms.chime();
+    if (N.wakePanel) N.wakePanel();
+    const de = n.from ? " de " + n.from : "";
+    N.toast(n.kind === "voice" ? `Nota de voz${de} para ${n.to}` : `Nota nueva${de} para ${n.to}`);
+  }
+
+  // ---------- notas de voz ----------
+  const secs = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  function savePlays() {
+    const live = new Set(((data && data.notes) || []).map((n) => n.id));
+    for (const id of Object.keys(plays)) if (!live.has(id)) delete plays[id]; // olvidar las notas que ya no están
+    try { localStorage.setItem("nexus.plays", JSON.stringify(plays)); } catch { /* sin almacenamiento */ }
+  }
+
+  function voiceCard(n) {
+    const isPlaying = playing && playing.id === n.id;
+    const count = plays[n.id] || 0;
+    const wasHeard = count > 0;
+    const meta = (n.from ? "De " + n.from + " · " : "") + secs(n.seconds || 0);
+    let foot;
+    if (isPlaying) foot = N.h("span", { class: "card-s" }, count + 1 >= MAX_PLAYS ? "Última vez… luego se borra" : "Reproduciendo… toca para parar");
+    else if (wasHeard) foot = N.h("span", { class: "vn-acts" },
+      N.h("span", { class: "vn-act", "data-act": "play" }, "↻ Otra vez (última)"),
+      N.h("span", { class: "vn-act del", "data-act": "del" }, "✕ Quitar"));
+    else foot = N.h("span", { class: "card-s" }, "Toca para escuchar");
+    const c = card("note voice" + (wasHeard ? "" : " unheard") + (isPlaying ? " playing" : ""), "Nota de voz · para " + n.to,
+      N.h("span", { class: "card-b" }, N.h("span", { class: "card-v sm" }, N.h("span", { class: "vn-wave", "aria-hidden": "true" }, N.h("i"), N.h("i"), N.h("i"), N.h("i"), N.h("i")), meta), foot),
+      (e) => {
+        const act = e.target && e.target.closest && e.target.closest("[data-act]");
+        if (act && act.dataset.act === "del") return removeNote(n);
+        if (playing && playing.id === n.id) return stopVoice();
+        playVoice(n);
+      }, "mic");
+    return c;
+  }
+
+  async function playVoice(n) {
+    stopVoice();
+    if (window.NexusWake) window.NexusWake.pause(); // que "Oye NEXUS" no se escuche a sí mismo
+    playing = { id: n.id, audio: null, url: null };
+    render();
+    try {
+      const r = await fetch("/api/notes/" + n.id + "/audio", { headers: { Authorization: "Bearer " + N.token() } });
+      if (!r.ok) throw new Error(r.status === 404 ? "El audio de esta nota ya no está disponible" : "No se pudo cargar la nota de voz");
+      if (!playing || playing.id !== n.id) return; // la pararon mientras cargaba
+      playing.url = URL.createObjectURL(await r.blob());
+      playing.audio = new Audio(playing.url);
+      playing.audio.onended = () => {
+        plays[n.id] = (plays[n.id] || 0) + 1;
+        savePlays();
+        stopVoice();
+        if (plays[n.id] >= MAX_PLAYS) {
+          removeNote(n);
+          N.toast("Nota de voz escuchada 2 veces: eliminada");
+        }
+      };
+      playing.audio.onerror = () => { N.toast("No se pudo reproducir la nota de voz"); stopVoice(); };
+      await playing.audio.play();
+    } catch (e) {
+      N.toast(e.message || "No se pudo reproducir la nota de voz");
+      stopVoice();
+    }
+  }
+
+  function stopVoice() {
+    if (!playing) return;
+    try { if (playing.audio) playing.audio.pause(); } catch { /* ya parado */ }
+    if (playing.url) URL.revokeObjectURL(playing.url);
+    playing = null;
+    if (window.NexusWake) window.NexusWake.resume();
+    render();
+  }
+
+  async function removeNote(n) {
+    if (playing && playing.id === n.id) stopVoice();
+    const j = await N.api("/api/notes/" + n.id, { method: "DELETE" }).catch(() => null);
+    if (j) { data.notes = j.notes; liveAt.notes = Date.now(); knownNotes = new Set(j.notes.map((x) => x.id)); render(); }
+    else refresh();
+  }
+
+  // ---------- conexión en vivo (WebSocket) ----------
+  // El servidor avisa al momento cuando cambian la lista o las notas. Si se corta, se
+  // reconecta solo; mientras tanto sigue la actualización cada 30 s.
+  let live = null, liveRetry = 2000, livePing = null;
+  function connectLive() {
+    if (!window.WebSocket || !N.token()) return;
+    try {
+      live = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/live", ["nexus", N.token()]);
+    } catch { return scheduleLive(); }
+    live.onopen = () => {
+      liveRetry = 2000;
+      clearInterval(livePing);
+      livePing = setInterval(() => { try { live.send("ping"); } catch { /* se reconecta al cerrarse */ } }, 25000);
+      refresh(); // por si cambió algo mientras estaba desconectada
+    };
+    live.onmessage = (ev) => {
+      if (ev.data === "pong") return;
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (!data) return;
+      if (m.type === "shopping" && Array.isArray(m.items)) {
+        data.shopping = m.items; liveAt.shopping = Date.now();
+        render(); refreshListSheet();
+      } else if (m.type === "notes" && Array.isArray(m.notes)) {
+        data.notes = m.notes; liveAt.notes = Date.now();
+        checkNewNotes(m.notes);
+        render();
+      }
+    };
+    live.onclose = () => { clearInterval(livePing); live = null; scheduleLive(); };
+    live.onerror = () => { try { live.close(); } catch { /* */ } };
+  }
+  function scheduleLive() {
+    setTimeout(connectLive, liveRetry);
+    liveRetry = Math.min(liveRetry * 2, 60000);
+  }
+  // Si la lista está abierta, se redibuja (salvo que estén escribiendo en ella)
+  function refreshListSheet() {
+    const input = document.querySelector(".list-add .ed-input");
+    if (!input) return;
+    if (document.activeElement === input && input.value) return;
+    openList();
+  }
+
   function init(ctx) {
     N = ctx;
     refresh();
+    connectLive();
     setInterval(refresh, REFRESH_MS);
     if (hasMediaBridge()) setInterval(() => { if (document.visibilityState === "visible") pollMedia(); }, 2000);
     window.addEventListener("resize", fitCards);

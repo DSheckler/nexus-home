@@ -20,7 +20,10 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   buenos días: un resumen hablado con el tiempo, la agenda y recomendaciones (ropa, paraguas, luz barata).
 - **Precio real de la luz**: spot más red, impuesto, IVA y tu contrato, y aviso de la hora más barata para
   la lavadora.
-- **Lista de la compra y notas** compartidas desde el móvil (sin instalar nada).
+- **Lista de la compra y notas** compartidas desde el móvil (sin instalar nada). Los cambios llegan al panel
+  **al instante** (conexión en vivo por WebSocket), y una nota nueva suena con un aviso corto.
+- **Notas de voz**: se graban desde el móvil (hasta 1 minuto). En el panel aparecen como una tarjeta azul
+  que se toca para escucharla. Se puede escuchar como máximo 2 veces y luego se borra sola (o antes, con «Quitar»).
 - **Cumpleaños y aniversarios**, rutinas ("me voy", "ya llegué", "buenas noches") y **modo noche**.
 - **Casa**: luces y enchufes Shelly (opcional).
 
@@ -39,6 +42,7 @@ Tablet (app Android mínima)  ──HTTPS──>  Cloudflare Worker  ──>  Op
   página web a pantalla completa          src/  (servidor)  ──>  elprisetjustnu.se (precio de la luz)
   micrófono, alarmas, sonidos             public/ (panel)   ──>  Google Calendar (cuenta de servicio)
                                           KV (datos)        ──>  Workers AI: Whisper (voz → texto),
+                                          Durable Object (avisos en vivo)
 Móvil (navegador) ── lista y notas                                gpt-oss-120b (asistente), Aura-2 (voz)
 ```
 

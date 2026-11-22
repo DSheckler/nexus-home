@@ -11,9 +11,12 @@ import * as H from "./household.js";
 import { getPower, getWarnings, getBriefing, getEveningBriefing } from "./extras.js";
 import { getDevices, controlDevice, setDeviceConfig } from "./devices.js";
 import { loadConfig, config } from "./config.js";
+import { notify } from "./hub.js";
+
+export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.10.0";
+const VERSION = "1.11.1";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -127,12 +130,25 @@ function safeEqual(a, b) {
 // Dos claves: la de la tablet (acceso completo) y la familiar (solo compra y notas,
 // para los móviles). Si se pierde un móvil, basta con cambiar la familiar.
 function scopeOf(request, env) {
-  const key = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  let key = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  // WebSocket: el navegador no permite cabeceras, la clave va como subprotocolo ("nexus", clave)
+  if (!key && request.headers.get("Upgrade") === "websocket") {
+    key = ((request.headers.get("Sec-WebSocket-Protocol") || "").split(",").map((s) => s.trim())[1]) || "";
+  }
   if (env.NEXUS_TOKEN && safeEqual(key, env.NEXUS_TOKEN)) return "full";
   if (env.FAMILY_TOKEN && safeEqual(key, env.FAMILY_TOKEN)) return "family";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(shopping|notes|config)(\/[a-z0-9]{1,20})?$/;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio)$/;
+
+// El asistente cambió algo de la casa: los móviles reciben la lista y las notas al momento
+function pushHome(env, ctx) {
+  const p = Promise.all([H.listShopping(env), H.listNotes(env)]).then(([items, notes]) => Promise.all([
+    notify(env, null, { type: "shopping", items }, "family"),
+    notify(env, null, { type: "notes", notes, added: null }, "family"),
+  ])).catch(() => {});
+  if (ctx) ctx.waitUntil(p);
+}
 
 async function body(request) {
   try { return await request.json(); } catch { throw new Error("Cuerpo JSON no válido"); }
@@ -186,9 +202,14 @@ async function handleApi(request, env, url, ctx) {
   if (path === "/api/assistant" && method === "POST") {
     const r = await askAssistant(env, await body(request));
     await addUsage(env, r.neurons);
+    if (r.changed && r.changed.home) pushHome(env, ctx);
     return json({ ok: true, ...r });
   }
-  if (path === "/api/voice" && method === "POST") return json({ ok: true, ...(await voiceTurn(request, env)) });
+  if (path === "/api/voice" && method === "POST") {
+    const r = await voiceTurn(request, env);
+    if (r.changed && r.changed.home) pushHome(env, ctx);
+    return json({ ok: true, ...r });
+  }
   if (path === "/api/speak" && method === "POST") return speak(request, env, ctx);
   if (path === "/api/usage" && method === "GET") {
     return json({ ok: true, neurons: await getUsage(env), voiceLimit: VOICE_LIMIT, dailyFree: DAILY_FREE });
@@ -203,22 +224,45 @@ async function handleApi(request, env, url, ctx) {
   let mt = path.match(/^\/api\/timers\/([a-z0-9]{1,20})$/);
   if (mt && method === "DELETE") return json({ ok: true, timers: await H.deleteTimer(env, mt[1]) });
 
-  // Lista de la compra
+  // Conexión en vivo (WebSocket) para que los cambios lleguen al momento
+  if (path === "/api/live") {
+    if (!env.HUB || request.headers.get("Upgrade") !== "websocket") return json({ ok: false, error: "websocket" }, 426);
+    return env.HUB.get(env.HUB.idFromName("casa")).fetch(new Request("https://hub/?scope=" + scope, request));
+  }
+
+  // Lista de la compra (cada cambio se avisa al momento a las pantallas)
+  const shopDone = (items, status = 200) => { notify(env, ctx, { type: "shopping", items }); return json({ ok: true, items }, status); };
   if (path === "/api/shopping") {
     if (method === "GET") return json({ ok: true, items: await H.listShopping(env) });
-    if (method === "POST") return json({ ok: true, items: await H.addShopping(env, (await body(request)).text) });
+    if (method === "POST") return shopDone(await H.addShopping(env, (await body(request)).text));
   }
   mt = path.match(/^\/api\/shopping\/([a-z0-9]{1,20})$/);
-  if (mt && method === "PATCH") return json({ ok: true, items: await H.updateShopping(env, mt[1], await body(request)) });
-  if (mt && method === "DELETE") return json({ ok: true, items: await H.removeShopping(env, mt[1]) });
+  if (mt && method === "PATCH") return shopDone(await H.updateShopping(env, mt[1], await body(request)));
+  if (mt && method === "DELETE") return shopDone(await H.removeShopping(env, mt[1]));
 
-  // Notas
+  // Notas (de texto y de voz)
+  const notesDone = (notes, added, status = 200) => { notify(env, ctx, { type: "notes", notes, added: added ? added.id : null }); return json({ ok: true, notes }, status); };
   if (path === "/api/notes") {
     if (method === "GET") return json({ ok: true, notes: await H.listNotes(env) });
-    if (method === "POST") { await H.addNote(env, await body(request)); return json({ ok: true, notes: await H.listNotes(env) }, 201); }
+    if (method === "POST") { const n = await H.addNote(env, await body(request)); return notesDone(await H.listNotes(env), n, 201); }
+  }
+  if (path === "/api/notes/voice" && method === "POST") {
+    if (Number(request.headers.get("Content-Length") || 0) > H.VOICE_MAX_BYTES) return json({ ok: false, error: "La nota de voz es demasiado larga" }, 413);
+    const dec = (h) => { try { return decodeURIComponent(request.headers.get(h) || ""); } catch { return ""; } };
+    const n = await H.addVoiceNote(env, {
+      to: dec("X-Note-To"), from: dec("X-Note-From"), seconds: request.headers.get("X-Note-Seconds"),
+      mime: request.headers.get("Content-Type"), audio: await request.arrayBuffer(),
+    });
+    return notesDone(await H.listNotes(env), n, 201);
+  }
+  mt = path.match(/^\/api\/notes\/([a-z0-9]{1,20})\/audio$/);
+  if (mt && method === "GET") {
+    const v = await H.getVoiceAudio(env, mt[1]);
+    if (!v) return json({ ok: false, error: "El audio ya no está disponible" }, 404);
+    return new Response(v.audio, { headers: { "Content-Type": v.mime, "Cache-Control": "private, max-age=86400" } });
   }
   mt = path.match(/^\/api\/notes\/([a-z0-9]{1,20})$/);
-  if (mt && method === "DELETE") return json({ ok: true, notes: await H.deleteNote(env, mt[1]) });
+  if (mt && method === "DELETE") return notesDone(await H.deleteNote(env, mt[1]));
 
   // Casa (Shelly)
   if (path === "/api/devices") {
