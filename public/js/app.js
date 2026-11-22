@@ -259,6 +259,12 @@
   // Quita elementos del final hasta que todo quepa (nunca texto cortado)
   function fitAgenda() {
     const box = $("agenda"), list = $("nextList");
+    box.style.removeProperty("--ag-size");
+    let size = 2.05;
+    while (box.scrollHeight > box.clientHeight + 1 && size > 1.6) {
+      size -= 0.05;
+      box.style.setProperty("--ag-size", size.toFixed(2) + "rem");
+    }
     if (!list) return;
     while (list.children.length > 1 && box.scrollHeight > box.clientHeight + 1) {
       list.lastElementChild.remove();
@@ -402,11 +408,11 @@
   // ---------- barra inferior ----------
   function renderActions() {
     const actions = [
+      { icon: "home", label: "Casa", run: () => window.NexusHome && window.NexusHome.openHouse() },
       { icon: "alarm", label: "Alarmas", run: () => ALARMS.openSheet() },
-      { icon: "menu", label: "Menú", run: () => window.NexusHome && window.NexusHome.openMenu() },
       { icon: "check", label: "Tareas", run: () => window.NexusHome && window.NexusHome.openChores() },
       { icon: "music", label: "Música", run: () => window.NexusHome && window.NexusHome.openMusic() },
-      { icon: "home", label: "Casa", run: () => window.NexusHome && window.NexusHome.openHouse() },
+      { icon: "menu", label: "Menú", run: () => window.NexusHome && window.NexusHome.openMenu() },
     ];
     $("actions").replaceChildren(
       ...actions.map((a) => h("button", { class: "action", type: "button", onclick: a.run }, h("span", { html: ICON[a.icon] }), a.label))

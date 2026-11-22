@@ -219,13 +219,33 @@ export function seasonNotices(days = 7) {
     const n = daysBetween(t, h.date);
     if (n >= 0 && n <= days) out.push({ id: "h" + h.date, kind: "holiday", red: h.red, text: h.name, date: h.date, inDays: n });
   }
-  const tip = (id, from, to, text, date) => { if (t >= from && t <= to) out.push({ id, kind: "tip", text, date: date || to, inDays: daysBetween(t, date || to) }); };
-  tip("vinterdack", `${y}-11-10`, `${y}-11-30`, "Neumáticos de invierno: obligatorios del 1 de diciembre al 31 de marzo si hay condiciones invernales", `${y}-12-01`);
-  tip("dubbdack", `${y}-04-01`, `${y}-04-15`, "Neumáticos con clavos: hay que quitarlos antes del 16 de abril (salvo condiciones invernales)", `${y}-04-15`);
-  tip("brandvarnare", `${y}-11-28`, `${y}-12-01`, "1 de diciembre, día del detector de humo: pulsad el botón de prueba de cada detector", `${y}-12-01`);
-  for (const [m, text] of [[3, "Este domingo se adelanta la hora (de 2:00 a 3:00): se duerme una hora menos"], [10, "Este domingo se atrasa la hora (de 3:00 a 2:00): una hora más de sueño"]]) {
+  const LABELS = { vinterdack: "Neumáticos de invierno", sommardack: "Neumáticos de verano", brandvarnare: "Detector de humo", dst3: "Cambio de hora", dst10: "Cambio de hora" };
+  const tip = (id, from, to, text, date, info) => { if (t >= from && t <= to) out.push({ id, kind: "tip", label: LABELS[id] || text.split(": ")[0], text, date: date || to, inDays: daysBetween(t, date || to), info: info || [] }); };
+  // Neumáticos: de invierno hasta el día en que pasan a ser obligatorios (1-12); se esconde y vuelve
+  // 2 días antes de que termine la temporada (31-3) para avisar de los de verano, hasta el 15-4.
+  tip("vinterdack", `${y}-11-10`, `${y}-12-01`, "Neumáticos de invierno: obligatorios del 1 de diciembre al 31 de marzo si hay condiciones invernales", `${y}-12-01`, [
+    "Obligatorios del 1 de diciembre al 31 de marzo cuando hay condiciones invernales: nieve, hielo, escarcha o agua helada en la calzada.",
+    "Profundidad mínima del dibujo en invierno: 3 mm.",
+    "Los de clavos se pueden llevar del 1 de octubre al 15 de abril (fuera de esas fechas, solo si hay condiciones invernales).",
+    "Pedid hora en el taller con tiempo: a finales de noviembre se llenan.",
+  ]);
+  tip("sommardack", `${y}-03-29`, `${y}-04-15`, "Neumáticos de verano: desde el 1 de abril; los de clavos, quitarlos antes del 16 de abril", `${y}-04-15`, [
+    "Desde el 1 de abril ya no es obligatorio llevar neumáticos de invierno.",
+    "Los de clavos hay que quitarlos antes del 16 de abril, salvo que haya condiciones invernales.",
+    "Los de invierno sin clavos se pueden seguir usando, pero en verano frenan peor y se gastan antes.",
+    "Profundidad mínima del dibujo en verano: 1,6 mm.",
+  ]);
+  tip("brandvarnare", `${y}-11-28`, `${y}-12-01`, "1 de diciembre, día del detector de humo: pulsad el botón de prueba de cada detector", `${y}-12-01`, [
+    "Pulsad el botón de prueba de cada detector hasta que suene.",
+    "Si no suena o suena débil, cambiad la pila (o el detector si tiene más de 10 años).",
+    "Lo ideal es un detector en cada planta y cerca de los dormitorios.",
+  ]);
+  for (const [m, text, info] of [
+    [3, "Este domingo se adelanta la hora (de 2:00 a 3:00): se duerme una hora menos", ["La madrugada del domingo, a las 2:00 pasan a ser las 3:00.", "La tablet y los móviles cambian solos; los relojes del horno o del coche, no."]],
+    [10, "Este domingo se atrasa la hora (de 3:00 a 2:00): una hora más de sueño", ["La madrugada del domingo, a las 3:00 vuelven a ser las 2:00.", "La tablet y los móviles cambian solos; los relojes del horno o del coche, no."]],
+  ]) {
     const s = lastSunday(y, m);
-    tip("dst" + m, addDays(s, -3), s, text, s);
+    tip("dst" + m, addDays(s, -3), s, text, s, info);
   }
   return out.sort((a, b) => a.inDays - b.inDays);
 }

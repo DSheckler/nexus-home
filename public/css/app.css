@@ -306,13 +306,13 @@ button:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
   grid-template-columns: 7.6rem .5rem 1fr;
   align-items: center;
   gap: 1.4rem;
-  font-size: 2.05rem;
+  font-size: var(--ag-size, 2.05rem);
   line-height: 1.2;
 }
 .item .when { color: var(--muted); font-variant-numeric: tabular-nums; }
 .item .mark { align-self: stretch; border-radius: .3rem; background: var(--c); }
-.item .what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item .who { color: var(--muted); font-size: 1.7rem; margin-left: .8rem; }
+.item .what { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.item .who { color: var(--muted); font-size: .82em; margin-left: .8rem; white-space: nowrap; }
 .item.past { opacity: .38; }
 .item.birthday .mark { background: transparent; }
 .item.birthday .what svg { width: 2rem; height: 2rem; vertical-align: -.2rem; margin-right: .6rem; color: var(--c); }
@@ -595,6 +595,9 @@ body.night .topline { display: none; }
 .notice-list { list-style: none; margin: 1rem 0 0; padding: 0; }
 .notice-row { display: flex; align-items: center; gap: 1.4rem; padding: 1.4rem 0; border-top: 1px solid var(--line); font-size: 2.1rem; cursor: pointer; }
 .notice-row .ic { width: 3.2rem; height: 3.2rem; }
+.tip-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+.tip-row { padding: 1.4rem 0 1.4rem 2.6rem; border-top: 1px solid var(--line); font-size: 2.1rem; line-height: 1.4; position: relative; }
+.tip-row::before { content: ""; position: absolute; left: .4rem; top: 2.4rem; width: .9rem; height: .9rem; border-radius: 50%; background: var(--sun); }
 .sheet-sub { margin: 1rem 0 2rem; font-size: 2rem; color: var(--muted); }
 .sheet-foot { display: flex; justify-content: space-between; gap: 1.6rem; margin-top: 2.4rem; }
 

@@ -479,8 +479,8 @@
   const shortDay = (key) => fDayShort.format(new Date(key + "T12:00:00Z")).replace(/\.$/, "");
   const WEEKDAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   function plantsTile() {
-    const list = data.plants || [];
-    if (!list.length) return null;
+    const list = (data.plants || []).filter((x) => x.pending || x.dueIn <= 2);
+    if (!list.length) return null; // recién regadas: la tarjeta vuelve 2 días antes del siguiente riego
     const p = list.find((x) => x.pending) || list[0];
     const big = p.pending ? (p.late ? `Hace ${p.late} d` : "¡Hoy!") : p.dueIn === 1 ? "Mañana" : `En ${p.dueIn} d`;
     const sub = p.pending ? "2 toques: regadas" : `Próximo: ${shortDay(p.due)}`;
@@ -564,12 +564,17 @@
     // Festivos (hoy y mañana) y consejos de temporada
     for (const n of data.season || []) {
       if (n.kind === "holiday" && n.inDays <= 1) info.push(chip("holiday", "flag", (n.inDays === 0 ? "Hoy: " : "Mañana: ") + n.text, null));
-      if (n.kind === "tip") info.push(chip("tip", "info", n.text.split(":")[0], () => N.toast(n.text)));
+      if (n.kind === "tip") info.push(chip("tip", "info", n.label || n.text.split(": ")[0], () => openTip(n)));
     }
     // Vacaciones: la víspera, la lista de antes de salir
     const v = data.settings && data.settings.vacation;
     if (v && v.from === dayKey(Date.now() + 86400000)) out.push(chip("vacation", "flag", "Mañana os vais: lista de salida", () => openVacation()));
     return { action: out, info };
+  }
+
+  function openTip(n) {
+    const lines = (n.info && n.info.length ? n.info : [n.text]).map((t) => N.h("li", { class: "tip-row" }, t));
+    openSheet(n.label || n.text.split(": ")[0], N.h("p", { class: "sheet-sub" }, n.text + "."), N.h("ul", { class: "tip-list" }, ...lines));
   }
 
   // ---------- menú de la semana ----------
