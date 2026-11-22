@@ -64,7 +64,7 @@
 
     const list = onDay(sel).sort((a, b) => (a.allDay ? "" : a.start || "").localeCompare(b.allDay ? "" : b.start || ""));
     const rows = list.map((e) => {
-      const del = e.type === "birthday" ? null : h("button", { class: "btn ghost ag-del", type: "button" }, "Quitar");
+      const del = e.type === "birthday" || e.type === "holiday" ? null : h("button", { class: "btn ghost ag-del", type: "button" }, "Quitar");
       if (del) {
         let armed = false;
         del.addEventListener("click", async () => {
@@ -83,7 +83,7 @@
         h("span", { class: "ag-time" }, e.allDay ? "Todo el día" : `${e.start}${e.end ? "–" + e.end : ""}`),
         h("span", { class: "mark" }),
         h("span", { class: "ag-what" },
-          h("span", { class: "ag-title" }, e.type === "birthday" ? h("span", { html: N.ICON.cake }) : null, e.title),
+          h("span", { class: "ag-title" }, e.type === "birthday" ? h("span", { html: N.ICON.cake }) : e.type === "holiday" ? h("span", { html: N.ICON.flag }) : null, e.title),
           h("span", { class: "who" }, N.name(e.who))),
         del);
     });

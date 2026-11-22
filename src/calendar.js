@@ -3,6 +3,7 @@
 
 import { googleConfigured, calendarsConfig, listEvents, gcal } from "./google.js";
 import { upcomingDates } from "./household.js";
+import { holidaysOf } from "./life.js";
 
 const TZ = "Europe/Stockholm";
 const DAYS_AHEAD = 14;
@@ -72,11 +73,15 @@ function normalize(e, cal, cals = []) {
 export async function getAgenda(env) {
   const base = await getAgendaBase(env);
   const dates = await upcomingDates(env, DAYS_AHEAD).catch(() => []);
-  if (!dates.length) return base;
   const todayKey = fKey.format(new Date());
-  const extra = dates.map((d) => ({
-    when: d.inDays === 0 ? "Hoy" : whenLabel(d.date, todayKey), title: d.title, who: "familia", type: "birthday", sortKey: d.date,
-  }));
+  const until = new Date(Date.parse(todayKey + "T12:00:00Z") + DAYS_AHEAD * 86400000).toISOString().slice(0, 10);
+  const y = Number(todayKey.slice(0, 4));
+  const holidays = [...holidaysOf(y), ...holidaysOf(y + 1)].filter((h) => h.red && h.date > todayKey && h.date <= until);
+  if (!dates.length && !holidays.length) return base;
+  const extra = [
+    ...dates.map((d) => ({ when: d.inDays === 0 ? "Hoy" : whenLabel(d.date, todayKey), title: d.title, who: "familia", type: "birthday", sortKey: d.date })),
+    ...holidays.map((h) => ({ when: whenLabel(h.date, todayKey), title: h.name, who: "familia", type: "holiday", sortKey: h.date })),
+  ];
   const keyOf = (e) => (e.when === "Hoy" ? todayKey : e.sortKey || "");
   const upcoming = [...extra, ...(base.upcoming || [])];
   // Orden: las fechas propias delante si son hoy o mañana; el resto, ya viene ordenado por día

@@ -125,14 +125,16 @@
   function renderAlarm() {
     const n = ALARMS.next(state.alarms, now());
     if (!n) {
-      $("alarm").replaceChildren(h("span", { html: ICON.bell }), h("span", {}, "Sin alarmas activas"));
+      $("alarm").replaceChildren(h("span", { html: ICON.bell }), h("span", {}, "Sin alarmas"));
       return;
     }
+    // Corta, para caber junto a la fecha: "Mañana 06:30"
     $("alarm").replaceChildren(
       h("span", { html: ICON.bell }),
-      h("span", {}, "Alarma ", n.dayText, " a las "),
+      h("span", {}, cap(n.dayText) + " "),
       h("strong", {}, n.alarm.time)
     );
+    $("alarm").title = "Próxima alarma: " + n.dayText + " a las " + n.alarm.time;
   }
 
   // ---------- cielo vivo ----------
@@ -235,13 +237,13 @@
       )
     );
     const nextItems = a.upcoming.slice(0, 3).map((e) =>
-      h("li", { class: "item" + (e.type === "birthday" ? " birthday" : ""), style: `--c:${color(e.who)}` },
+      h("li", { class: "item" + (e.type === "birthday" || e.type === "holiday" ? " birthday" : ""), style: `--c:${color(e.who)}` },
         h("span", { class: "when" }, e.when),
         h("span", { class: "mark" }),
         h("span", { class: "what" },
-          e.type === "birthday" ? h("span", { html: ICON.cake }) : null,
+          e.type === "birthday" ? h("span", { html: ICON.cake }) : e.type === "holiday" ? h("span", { html: ICON.flag }) : null,
           e.title,
-          e.type === "birthday" ? null : h("span", { class: "who" }, name(e.who))
+          e.type === "birthday" || e.type === "holiday" ? null : h("span", { class: "who" }, name(e.who))
         )
       )
     );
@@ -469,6 +471,7 @@
     }
     document.body.classList.toggle("night", night);
     document.documentElement.classList.toggle("night", night);
+    if (night !== lastNight && window.NexusHome && window.NexusHome.fitLayout) requestAnimationFrame(() => window.NexusHome.fitLayout());
     if ((force || night !== lastNight) && window.NexusAndroid) {
       try { window.NexusAndroid.setBrightness(night ? NIGHT_BRIGHTNESS : -1); } catch { /* sin app */ }
     }

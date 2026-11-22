@@ -80,7 +80,7 @@ button:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
 .clock {
   font-family: "Outfit", sans-serif;
   font-weight: 200;
-  font-size: 25rem;
+  font-size: var(--clock-size, 25rem);
   line-height: .82;
   letter-spacing: -.045em;
   font-variant-numeric: tabular-nums;
@@ -471,7 +471,12 @@ body.talking .caption:has(.cap-form:not([hidden])) .cap-reply { display: none; }
 .bar-right { display: flex; align-items: center; gap: 2.4rem; min-width: 0; }
 /* El texto de estado se recorta antes que empujar los botones fuera de la pantalla */
 /* Fila de estado sobre la hora */
-.topline { display: flex; align-items: center; gap: 2.4rem; margin: 0 0 2.4rem; min-height: 3rem; }
+.topline { display: flex; align-items: center; gap: 2.4rem; margin: 0 0 2rem; min-height: 3.4rem; }
+/* Avisos informativos arriba (cuota de IA, festivos, temporada, aurora, polen): ocupan el hueco libre */
+.pills.top { flex: 1; gap: .8rem; }
+.pills.top .pill { padding: .35rem 1.2rem .35rem .45rem; font-size: 1.5rem; gap: .6rem; }
+.pills.top .pill .ic { width: 2.2rem; height: 2.2rem; }
+.pills.top .pill .ic svg { width: 1.3rem; height: 1.3rem; }
 .sys { display: flex; align-items: center; gap: .8rem; font-size: 1.8rem; color: var(--muted); white-space: nowrap; min-width: 0; flex: 0 1 auto; }
 .sys > span { overflow: hidden; text-overflow: ellipsis; }
 .dev, .actions { flex: none; }
@@ -760,8 +765,12 @@ body.night .alarm strong { color: #8a5f36; }
 
 /* ---------- Zona de información: franja de avisos + 3 tarjetas fijas ---------- */
 .info { margin-top: 1.8rem; }
-.status-row { display: flex; align-items: center; gap: 1.6rem; margin-top: 2.4rem; min-width: 0; }
-.status-row .alarm { margin-top: 0; flex: none; }
+.date-row { display: flex; align-items: baseline; gap: 2.8rem; margin-top: 3rem; min-width: 0; }
+.date-row .date { margin-top: 0; flex: none; }
+.date-row .alarm { margin-top: 0; flex: none; font-size: 2.2rem; white-space: nowrap; align-self: center; }
+body.night .date-row { flex-direction: column; align-items: center; gap: 2.4rem; }
+.status-row { display: flex; align-items: center; margin-top: 2rem; min-width: 0; }
+.status-row:has(.pills:empty) { display: none; }
 .pills { flex: 1; display: flex; gap: 1rem; overflow: hidden; min-width: 0; }
 .pills:empty { display: none; }
 body.night .pills { display: none; }
@@ -773,6 +782,7 @@ body.night .pills { display: none; }
 }
 .pill[hidden] { display: none; }
 .pill { max-width: 32rem; }
+.pill.has-t { min-width: 13rem; } /* con menos sitio no se lee: mejor que pase al «+N» */
 /* El primer aviso nunca se esconde entero: se recorta dejando sitio al «+N» */
 .pill:first-child { max-width: min(32rem, calc(100% - 6.5rem)); }
 .pill-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -866,7 +876,7 @@ body.night .pills { display: none; }
 .tiles.four { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, .72fr); }
 .card.plants { --tint: rgba(127, 191, 142, .16); --ic-bg: rgba(127, 191, 142, .28); --ic-fg: #b4e6c0; }
 .card.plants.due { border-color: rgba(127, 191, 142, .75); animation: plant-glow 2.4s ease-in-out infinite; }
-.card.plants .card-v { color: #b4e6c0; }
+.card.plants .card-v { color: #b4e6c0; white-space: nowrap; font-size: 2.6rem; }
 @keyframes plant-glow { 50% { box-shadow: 0 0 0 .5rem rgba(127, 191, 142, .14); } }
 
 /* Avisos nuevos */

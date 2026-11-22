@@ -152,12 +152,13 @@
       const until = w.end ? " · hasta " + new Date(w.end).toLocaleString("es-ES", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" }) : "";
       chips.push(chip("warn " + w.level, "warn", "SMHI: " + w.event + until, () => N.toast(w.text || w.event)));
     }
+    const top = [];
     const ai = data.ai;
     if (ai && ai.used >= ai.free * 0.7) {
       const out = ai.used >= ai.free;
       const reset = new Date(); reset.setUTCHours(24, 0, 0, 0);
       const at = reset.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
-      chips.push(chip("warn " + (out ? "orange" : "yellow"), "warn", out ? "IA agotada hasta las " + at : "Queda " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " % de IA",
+      top.push(chip("warn " + (out ? "orange" : "yellow"), "warn", out ? "IA agotada hasta las " + at : "Queda " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " % de IA",
         () => N.toast(out ? "NEXUS no puede responder con IA hasta las " + at + ". Las preguntas habituales y el resto del panel funcionan." : "La voz natural y «Oye NEXUS» se apagan solas antes de agotarla.")));
     }
     for (const t of data.timers || []) {
@@ -173,7 +174,9 @@
       chips.push(chip("date", "cake", (d.inDays === 0 ? "Hoy: " : "Mañana: ") + kind + d.name + (d.age ? ` (${d.age})` : ""), () => N.toast(d.title)));
     }
     chips.push(...chorePills());
-    chips.push(...extraPills());
+    const ex = extraPills();
+    chips.push(...ex.action);
+    top.push(...ex.info);
     const pp = powerPill();
     if (pp) chips.push(pp);
     const g = (data.garbage || [])[0];
@@ -186,15 +189,17 @@
     const tiles = [notesTile(), shopTile(), data.power ? powerCard(data.power) : emptyTile("bolt", "Luz ahora", "Sin datos del precio"), plantsTile()].filter(Boolean);
 
     $("pills").replaceChildren(...chips);
+    $("pillsTop").replaceChildren(...top);
     box.replaceChildren(N.h("div", { class: "tiles" + (tiles.length === 4 ? " four" : "") }, ...tiles));
     renderAbroad();
     fitChips();
+    fitLayout();
     startTick();
     refreshNotesSheet();
   }
 
   function chip(cls, icon, text, onclick) {
-    return N.h("button", { class: "pill " + cls, type: "button", onclick, title: text || null }, N.h("span", { class: "ic", html: N.ICON[icon] }), text ? N.h("span", { class: "pill-t" }, text) : null);
+    return N.h("button", { class: "pill " + cls + (text ? " has-t" : ""), type: "button", onclick, title: text || null }, N.h("span", { class: "ic", html: N.ICON[icon] }), text ? N.h("span", { class: "pill-t" }, text) : null);
   }
   // Toque doble para acciones que borran algo
   function armTap(el, hint, run) {
@@ -258,7 +263,11 @@
   // En la franja solo caben unas pocas: las primeras son las más importantes, y lo que
   // no cabe se resume en un «+N» que lo muestra al tocarlo (nada desaparece sin avisar)
   function fitChips() {
-    const row = $("pills");
+    fitRow($("pills"));
+    fitRow($("pillsTop"));
+  }
+  function fitRow(row) {
+    if (!row) return;
     row.querySelectorAll(".pill-more").forEach((e) => e.remove());
     const kids = [...row.children];
     for (const c of kids) c.hidden = false;
@@ -278,6 +287,22 @@
     }
   }
 
+
+  // La columna de la hora debe caber entera (en la tablet real hay unos píxeles menos):
+  // si no cabe, la hora se reduce poco a poco, como mucho hasta 17rem.
+  function fitLayout() {
+    const tb = document.querySelector(".time-block");
+    if (!tb || document.body.classList.contains("night")) { if (tb) tb.style.removeProperty("--clock-size"); return; }
+    tb.style.removeProperty("--clock-size");
+    const info = $("info");
+    // La zona de tarjetas se encoge y recorta en vez de desbordar: hay que mirar las dos cosas
+    const over = () => tb.scrollHeight > tb.clientHeight + 1 || (info && info.scrollHeight > info.clientHeight + 1);
+    let size = 25;
+    while (over() && size > 17) {
+      size -= 0.5;
+      tb.style.setProperty("--clock-size", size + "rem");
+    }
+  }
 
   // ---------- temporizadores ----------
   function startTick() {
@@ -499,11 +524,11 @@
   // ---------- avisos nuevos de la franja ----------
   const hourNow = () => Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/Stockholm" }).format(new Date()));
   function extraPills() {
-    const out = [];
+    const out = [], info = [];
     const h = hourNow();
     // Aurora boreal (por la tarde-noche)
     const a = data.aurora;
-    if (a && a.chance && (h >= 16 || h < 3)) out.push(chip("aurora", "aurora", a.chance === "alta" ? `Auroras posibles esta noche (${a.when})` : `Quizá auroras hacia el norte`, () => N.toast(`Actividad Kp ${String(a.kp).replace(".", ",")}${a.clouds != null ? `, ${a.clouds} % de nubes` : ""}. Mirad al norte, lejos de las luces.`)));
+    if (a && a.chance && (h >= 16 || h < 3)) info.push(chip("aurora", "aurora", a.chance === "alta" ? `Auroras posibles esta noche (${a.when})` : `Quizá auroras hacia el norte`, () => N.toast(`Actividad Kp ${String(a.kp).replace(".", ",")}${a.clouds != null ? `, ${a.clouds} % de nubes` : ""}. Mirad al norte, lejos de las luces.`)));
     // Colegio: por la mañana lo de hoy; por la tarde lo de mañana
     const sc = data.school;
     if (sc) {
@@ -517,19 +542,19 @@
     const air = data.air;
     if (air && h >= 6 && h < 21) {
       const high = (air.pollen || []).filter((p) => p.level === "alto");
-      if (high.length) out.push(chip("air", "leaf", `Polen alto: ${high.map((p) => p.name).join(", ")}`, () => N.toast((air.pollen || []).map((p) => `${p.name}: ${p.level}`).join(" · "))));
-      if (air.uvMax >= 6 && h < 17) out.push(chip("air uv", "sun", `UV ${String(air.uvMax).replace(".", ",")}: protector solar`, null));
-      if (air.aqi != null && air.aqi > 60) out.push(chip("air bad", "leaf", `Aire ${air.aqiText}`, null));
+      if (high.length) info.push(chip("air", "leaf", `Polen alto: ${high.map((p) => p.name).join(", ")}`, () => N.toast((air.pollen || []).map((p) => `${p.name}: ${p.level}`).join(" · "))));
+      if (air.uvMax >= 6 && h < 17) info.push(chip("air uv", "sun", `UV ${String(air.uvMax).replace(".", ",")}: protector solar`, null));
+      if (air.aqi != null && air.aqi > 60) info.push(chip("air bad", "leaf", `Aire ${air.aqiText}`, null));
     }
     // Festivos (hoy y mañana) y consejos de temporada
     for (const n of data.season || []) {
-      if (n.kind === "holiday" && n.inDays <= 1) out.push(chip("holiday", "flag", (n.inDays === 0 ? "Hoy: " : "Mañana: ") + n.text, null));
-      if (n.kind === "tip") out.push(chip("tip", "info", n.text.split(":")[0], () => N.toast(n.text)));
+      if (n.kind === "holiday" && n.inDays <= 1) info.push(chip("holiday", "flag", (n.inDays === 0 ? "Hoy: " : "Mañana: ") + n.text, null));
+      if (n.kind === "tip") info.push(chip("tip", "info", n.text.split(":")[0], () => N.toast(n.text)));
     }
     // Vacaciones: la víspera, la lista de antes de salir
     const v = data.settings && data.settings.vacation;
     if (v && v.from === dayKey(Date.now() + 86400000)) out.push(chip("vacation", "flag", "Mañana os vais: lista de salida", () => openVacation()));
-    return out;
+    return { action: out, info };
   }
 
   // ---------- menú de la semana ----------
@@ -1029,11 +1054,13 @@
     if (hasMediaBridge()) setInterval(() => { if (document.visibilityState === "visible") pollMedia(); }, 2000);
     window.addEventListener("resize", fitChips);
     // La línea de la alarma cambia de ancho al cargarse: volver a medir la franja de avisos
-    if (window.ResizeObserver) new ResizeObserver(() => fitChips()).observe($("pills"));
+    if (window.ResizeObserver) { const ro = new ResizeObserver(() => fitChips()); ro.observe($("pills")); ro.observe($("pillsTop")); }
+    window.addEventListener("resize", fitLayout);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitLayout(); fitChips(); });
     // Al salir a Spotify/YouTube, el micrófono se suelta (y vuelve al regresar)
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   }
 
-  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, settings: () => (data && data.settings) || {},
+  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, fitLayout, settings: () => (data && data.settings) || {},
     timers: () => ((data && data.timers) || []).map((t) => ({ ...t, endsAt: t.endsAt + (data.skew || 0) })) };
 })();
