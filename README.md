@@ -26,7 +26,13 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   **al instante** (conexión en vivo por WebSocket), y una nota nueva suena con un aviso corto.
 - **Notas de voz**: se graban desde el móvil (hasta 1 minuto). En el panel aparecen como una tarjeta azul
   que se toca para escucharla. Se puede escuchar como máximo 2 veces y luego se borra sola (o antes, con «Quitar»).
-- **Cumpleaños y aniversarios**, rutinas ("me voy", "ya llegué", "buenas noches") y **modo noche**.
+- **Cumpleaños y aniversarios** (también los de los contactos del iPhone con un Atajo: [guía](docs/atajo-cumpleanos.md)), rutinas ("me voy", "ya llegué", "buenas noches") y **modo noche**.
+- **Recordatorios con hora** («recuérdame mañana a las 18 sacar la basura»): suenan en el panel.
+- **Tareas de la casa** que se repiten (regar las plantas cada 3 días) con turnos que rotan solos.
+- **Modo invitados**: un QR en el panel (o un enlace desde el móvil) para que una visita use la lista
+  y las notas durante 24 horas, sin ver nada más.
+- **Resumen de la semana** el domingo por la tarde: agenda, cumpleaños, basura, tareas, tiempo y luz.
+- **Aviso de luz barata o cara** en el panel y **comparación** del gasto con el contrato anterior.
 - **Casa**: luces y enchufes Shelly (opcional).
 
 | | |

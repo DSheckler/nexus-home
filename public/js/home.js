@@ -130,6 +130,7 @@
       data.dates, p && [p.now.h, p.now.sek, p.real && p.real.now, p.cheapestRest && p.cheapestRest.h, p.avg],
       data.shopping, (data.garbage || [])[0], new Date().toDateString(),
       data.powerMonth && data.powerMonth.current && data.powerMonth.current.kr,
+      data.reminders, data.chores, data.power && data.power.hourlyContract,
     ]);
   }
 
@@ -144,6 +145,7 @@
     // ---- franja de avisos ----
     const chips = [];
     if (media) chips.push(mediaCard());
+    chips.push(...reminderPills(now));
     for (const w of data.warnings || []) {
       const until = w.end ? " · hasta " + new Date(w.end).toLocaleString("es-ES", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" }) : "";
       chips.push(chip("warn " + w.level, "warn", "SMHI: " + w.event + until, () => N.toast(w.text || w.event)));
@@ -168,6 +170,9 @@
       const kind = d.kind === "cumpleaños" ? "cumpleaños de " : d.kind === "aniversario" ? "aniversario: " : "";
       chips.push(chip("date", "cake", (d.inDays === 0 ? "Hoy: " : "Mañana: ") + kind + d.name + (d.age ? ` (${d.age})` : ""), () => N.toast(d.title)));
     }
+    chips.push(...chorePills());
+    const pp = powerPill();
+    if (pp) chips.push(pp);
     const g = (data.garbage || [])[0];
     if (g && g.inDays <= 7) {
       const day = g.inDays === 0 ? "hoy" : g.inDays === 1 ? "mañana" : "el " + new Date(g.date + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" });
@@ -273,10 +278,11 @@
   // ---------- temporizadores ----------
   function startTick() {
     clearInterval(tick);
-    if (!data || !(data.timers || []).length) return;
+    if (!data || !((data.timers || []).length || remindersToday(Date.now()))) return;
     tick = setInterval(() => {
       const now = Date.now() - (data.skew || 0);
-      for (const t of data.timers) {
+      checkReminders(now);
+      for (const t of data.timers || []) {
         const left = (t.endsAt - now) / 1000;
         const el = document.querySelector(`[data-timer="${t.id}"]`);
         if (el) el.textContent = mmss(left);
@@ -287,6 +293,140 @@
         }
       }
     }, 1000);
+  }
+
+  // ---------- aviso de luz barata o cara (solo si se paga el precio de cada hora) ----------
+  function powerPill() {
+    const p = data.power;
+    if (!p || !p.hourlyContract || !p.real || !p.hours || !p.hours.length) return null;
+    const extra = p.real.now - p.now.sek * 1.25;                 // red + impuesto + compañía (por kWh)
+    const real = (sek) => sek * 1.25 + extra;
+    const avg = p.hours.reduce((s, x) => s + real(x.sek), 0) / p.hours.length;
+    const now = real(p.now.sek);
+    const hourNow = Number(p.now.h);
+    if (hourNow < 7 || hourNow >= 22) return null;               // de noche no molesta
+    const pct = Math.round((now / avg - 1) * 100);
+    if (pct <= -25) return chip("power-cheap", "bolt", `Luz barata ahora · ${kr(now)} kr (${pct} %)`, () => N.toast("Buen momento para la lavadora, el lavavajillas o cargar cosas."));
+    if (pct >= 35) {
+      // ¿Hasta cuándo sigue cara?
+      const rest = p.hours.filter((x) => Number(x.h) > hourNow);
+      const ok = rest.find((x) => real(x.sek) < avg * 1.1);
+      return chip("power-dear", "bolt", `Luz cara ahora${ok ? ` hasta las ${ok.h}:00` : ""} · ${kr(now)} kr`, () => N.toast(p.cheapestRest ? `La más barata del resto del día: a las ${p.cheapestRest.h}:00.` : "Mejor espera para lo que gaste mucho."));
+    }
+    // Si dentro de 1-3 horas viene una hora muy barata, avisarlo
+    const soon = p.hours.filter((x) => Number(x.h) > hourNow && Number(x.h) <= hourNow + 3 && Number(x.h) < 22)
+      .find((x) => real(x.sek) <= avg * 0.75);
+    if (soon) return chip("power-cheap soon", "bolt", `Luz barata a las ${soon.h}:00`, () => N.toast(`A las ${soon.h}:00 costará ${kr(real(soon.sek))} kr/kWh.`));
+    return null;
+  }
+
+  // ---------- recordatorios ----------
+  const fRemTime = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+  const dayKey = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Stockholm" }).format(new Date(ms));
+  function reminderPills(now) {
+    const today = dayKey(now);
+    return (data.reminders || []).filter((r) => r.at > now - 60000 && dayKey(r.at) === today).slice(0, 3).map((r) => {
+      const c = chip("reminder", "bell", `${fRemTime.format(new Date(r.at))} ${r.text}`, null);
+      armTap(c, "Toca otra vez para borrar el recordatorio", () => removeReminder(r));
+      return c;
+    });
+  }
+  async function removeReminder(r) {
+    const j = await N.api("/api/reminders/" + r.id, { method: "DELETE" }).catch(() => null);
+    if (j) { data.reminders = j.reminders; render(); }
+  }
+  const remRung = new Set();
+  function checkReminders(now) {
+    for (const r of data.reminders || []) {
+      if (r.at > now || remRung.has(r.id) || r.at < now - 10 * 60000) continue;
+      remRung.add(r.id);
+      window.NexusAlarms.ringNow({ id: r.id, kind: "timer", reminder: true, timerLabel: r.text, label: "Recordatorio: " + r.text, routine: false, days: [], enabled: true });
+      removeReminder(r);
+    }
+  }
+  const remindersToday = (now) => (data.reminders || []).some((r) => dayKey(r.at) === dayKey(now) && r.at > now - 10 * 60000);
+
+  // ---------- tareas de la casa ----------
+  function chorePills() {
+    return (data.chores || []).filter((c) => c.dueIn <= 0).slice(0, 3).map((c) => {
+      const el = chip("chore" + (c.dueIn < 0 ? " late" : ""), "check", `Toca: ${c.name}${c.who ? " · " + c.who : ""}`, null);
+      armTap(el, "Toca otra vez para marcarla hecha", () => choreDone(c));
+      return el;
+    });
+  }
+  async function choreDone(c) {
+    try {
+      const j = await N.api("/api/chores/" + c.id + "/done", { method: "POST" });
+      data.chores = j.chores; render();
+      const next = j.chores.find((x) => x.id === c.id);
+      N.toast(`Hecho: ${c.name}` + (next && next.who ? `. La próxima vez le toca a ${next.who}` : ""));
+      if (sheet && sheet.dataset.kind === "chores") openChores();
+    } catch (err) { N.toast(err.message); }
+  }
+  function dueText(c) {
+    if (c.dueIn < 0) return `atrasada ${-c.dueIn} ${c.dueIn === -1 ? "día" : "días"}`;
+    if (c.dueIn === 0) return "toca hoy";
+    if (c.dueIn === 1) return "mañana";
+    return `en ${c.dueIn} días`;
+  }
+  function openChores() {
+    const list = data.chores || [];
+    const rows = list.map((c) => N.h("li", { class: "note-row" + (c.dueIn <= 0 ? " due" : "") },
+      N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, c.name),
+        N.h("span", { class: "note-meta" }, `Cada ${c.every === 1 ? "día" : c.every + " días"} · ${dueText(c)}` + (c.who ? ` · le toca a ${c.who}` : ""))),
+      N.h("button", { class: "btn primary", type: "button", onclick: () => choreDone(c) }, "Hecho"),
+      N.h("button", { class: "btn ghost note-del", type: "button", onclick: async () => {
+        const j = await N.api("/api/chores/" + c.id, { method: "DELETE" }).catch(() => null);
+        if (j) { data.chores = j.chores; render(); openChores(); }
+      } }, "Quitar")));
+    const name = N.h("input", { class: "ed-input", type: "text", maxlength: "40", placeholder: "Nueva tarea (p. ej. regar las plantas)", "aria-label": "Tarea" });
+    const every = N.h("select", { class: "ed-input pw-sel", "aria-label": "Cada cuánto" },
+      ...[[1, "Cada día"], [2, "Cada 2 días"], [3, "Cada 3 días"], [7, "Cada semana"], [14, "Cada 2 semanas"], [30, "Cada mes"]].map(([v, t]) => N.h("option", { value: v, selected: v === 7 ? true : null }, t)));
+    const fam = family || [];
+    const picks = fam.map((f) => { const cb = N.h("input", { type: "checkbox", value: f }); return { cb, el: N.h("label", { class: "who-pick" }, cb, f) }; });
+    const form = N.h("form", { class: "chore-add" },
+      N.h("div", { class: "list-add" }, name, every),
+      picks.length ? N.h("div", { class: "who-row" }, N.h("span", { class: "note-meta" }, "Turnos:"), ...picks.map((p) => p.el)) : null,
+      N.h("button", { class: "btn primary", type: "submit" }, "Añadir tarea"));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!name.value.trim()) return;
+      try {
+        const j = await N.api("/api/chores", { method: "POST", body: { name: name.value.trim(), every: Number(every.value), people: picks.filter((p) => p.cb.checked).map((p) => p.cb.value) } });
+        data.chores = j.chores; render(); openChores();
+      } catch (err) { N.toast(err.message); }
+    });
+    openSheet("Tareas de la casa",
+      N.h("p", { class: "sheet-sub" }, "Se repiten solas y van rotando el turno. También por voz: «Oye NEXUS, ya regué las plantas»."),
+      rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "empty" }, "Aún no hay tareas."),
+      form);
+    sheet.dataset.kind = "chores";
+  }
+
+  // ---------- invitados: enlace temporal con QR ----------
+  function loadQr() {
+    if (window.qrcode) return Promise.resolve();
+    return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = "js/qrcode.js"; s.onload = ok; s.onerror = fail; document.head.append(s); });
+  }
+  function guestButton() {
+    return N.h("div", { class: "guest-box" },
+      N.h("span", { class: "note-meta" }, "¿Visita en casa? Pueden usar la lista de la compra y dejar notas desde su móvil, sin ver nada más."),
+      N.h("button", { class: "btn", type: "button", onclick: () => openGuest() }, "Invitar con un QR"));
+  }
+  async function openGuest(hours = 24) {
+    openSheet("Invitado", N.h("p", { class: "sheet-sub" }, "Creando el enlace…"));
+    try {
+      const [j] = await Promise.all([N.api("/api/guests", { method: "POST", body: { hours } }), loadQr()]);
+      const qr = window.qrcode(0, "M"); qr.addData(j.guest.url); qr.make();
+      const until = new Date(j.guest.expires).toLocaleString("es-ES", { weekday: "long", hour: "2-digit", minute: "2-digit" });
+      if (!sheet) return;
+      sheet.firstChild.replaceChildren(sheet.firstChild.firstChild,
+        N.h("p", { class: "sheet-sub" }, `Que escaneen el código con la cámara del móvil. Sirve hasta el ${until}.`),
+        N.h("div", { class: "qr", html: qr.createSvgTag({ cellSize: 7, margin: 2, scalable: true }) }),
+        N.h("div", { class: "sheet-foot" },
+          N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/guests/" + j.guest.id, { method: "DELETE" }).catch(() => {}); N.toast("Enlace de invitado anulado"); closeSheet(); } }, "Anular ya"),
+          N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/guests/" + j.guest.id, { method: "DELETE" }).catch(() => {}); openGuest(24 * 7); } }, "Mejor 7 días")));
+    } catch (err) { N.toast(err.message || "No se pudo crear el enlace"); closeSheet(); }
   }
 
   // ---------- paneles ----------
@@ -373,10 +513,12 @@
         N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.kr) + " kr"), N.h("span", { class: "pw-l" }, `${c.label.split(" ")[0]} hasta hoy · ~${c.kwh} kWh`)),
         N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.forecastKr) + " kr"), N.h("span", { class: "pw-l" }, `previsión del mes · ~${c.forecastKwh} kWh`))),
         N.h("p", { class: "pw-note" }, `Estimado con ${c.basis} y el precio real de cada hora. Incluye red, impuesto e IVA` + (c.hasGridFee ? ", y la cuota fija de la red." : " (falta la cuota fija de la red).")));
+      if (c.compare) body.push(N.h("p", { class: "pw-cmp " + (c.compare.savedForecastKr >= 0 ? "good" : "bad") },
+        `Con ${c.compare.name} este mes saldría por ~${kr0(c.compare.forecastKr)} kr: ` + (c.compare.savedForecastKr >= 0 ? `con ${c.compare.current} ahorráis ~${kr0(c.compare.savedForecastKr)} kr.` : `con ${c.compare.current} pagáis ~${kr0(-c.compare.savedForecastKr)} kr más.`)));
     }
     const rows = ((pm && pm.past) || []).map((r) => N.h("li", { class: "note-row" },
       N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, r.label.charAt(0).toUpperCase() + r.label.slice(1)),
-        N.h("span", { class: "note-meta" }, `${r.kwh} kWh de la factura · ${kr(r.perKwh)} kr/kWh de media`)),
+        N.h("span", { class: "note-meta" }, `${r.kwh} kWh de la factura · ${kr(r.perKwh)} kr/kWh de media` + (r.compare ? ` · con ${r.compare.name}: ~${kr0(r.compare.kr)} kr` : ""))),
       N.h("span", { class: "pw-kr" }, "~" + kr0(r.kr) + " kr"),
       N.h("button", { class: "btn ghost note-del", type: "button", onclick: async () => {
         const j = await N.api("/api/power/readings/" + r.month, { method: "DELETE" }).catch(() => null);
@@ -478,7 +620,7 @@
       sheet.firstChild.classList.add("wide");
       body.push(N.h("p", { class: "sheet-sub" }, j && j.devices.length ? "Toca una luz para encenderla o apagarla." : "Plano listo. Las luces aparecerán aquí cuando conectes dispositivos Shelly."));
       body.push(floorPlan(plan, (j && j.devices) || []));
-      sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body);
+      sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, guestButton());
       return;
     }
     if (!j) body.push(N.h("p", { class: "empty" }, "No he podido consultar los dispositivos."));
@@ -499,7 +641,7 @@
           sw);
       })));
     }
-    sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body);
+    sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, guestButton());
   }
 
   // ---------- notas nuevas: sonido de aviso ----------
@@ -594,6 +736,13 @@
       if (m.type === "shopping" && Array.isArray(m.items)) {
         data.shopping = m.items; liveAt.shopping = Date.now();
         render(); refreshListSheet();
+      } else if (m.type === "reminders" && Array.isArray(m.reminders)) {
+        data.reminders = m.reminders; render();
+      } else if (m.type === "chores" && Array.isArray(m.chores)) {
+        data.chores = m.chores; render();
+        if (sheet && sheet.dataset.kind === "chores") openChores();
+      } else if (m.type === "refresh") {
+        refresh();
       } else if (m.type === "powerMonth" && m.powerMonth) {
         data.powerMonth = m.powerMonth;
         render();
@@ -619,8 +768,10 @@
     openList();
   }
 
+  let family = null;
   function init(ctx) {
     N = ctx;
+    N.api("/api/config").then((c) => { family = c.family || []; }).catch(() => {});
     refresh();
     connectLive();
     setInterval(refresh, REFRESH_MS);
@@ -632,6 +783,6 @@
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   }
 
-  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, settings: () => (data && data.settings) || {},
+  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, openChores, settings: () => (data && data.settings) || {},
     timers: () => ((data && data.timers) || []).map((t) => ({ ...t, endsAt: t.endsAt + (data.skew || 0) })) };
 })();

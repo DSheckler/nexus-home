@@ -14,16 +14,20 @@ export class HomeHub extends DurableObject {
 
   async fetch(request) {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Se esperaba WebSocket", { status: 426 });
-    const scope = new URL(request.url).searchParams.get("scope") === "full" ? "full" : "family";
+    const asked = new URL(request.url).searchParams.get("scope");
+    const scope = ["full", "family", "guest"].includes(asked) ? asked : "guest";
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server, [scope]);
     return new Response(null, { status: 101, webSocket: client, headers: { "Sec-WebSocket-Protocol": "nexus" } });
   }
 
-  // Envía un mensaje a todas las pantallas. scope "full" = solo a la tablet.
+  // Envía un mensaje a las pantallas. scope: "full" (tablet), "family", "guest", una lista
+  // de ellos, o nada para todas.
   async broadcast(msg, scope) {
     const text = JSON.stringify(msg);
-    for (const ws of scope ? this.ctx.getWebSockets(scope) : this.ctx.getWebSockets()) {
+    const scopes = scope ? (Array.isArray(scope) ? scope : [scope]) : null;
+    const sockets = scopes ? scopes.flatMap((sc) => this.ctx.getWebSockets(sc)) : this.ctx.getWebSockets();
+    for (const ws of sockets) {
       try { ws.send(text); } catch { /* conexión ya cerrada */ }
     }
   }

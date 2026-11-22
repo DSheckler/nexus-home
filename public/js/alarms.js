@@ -207,7 +207,7 @@
     const now = N.now();
     if (alarm.kind === "timer") {
       return h("div", { class: "ring timer-ring", role: "alertdialog", "aria-label": "Temporizador" }, h("div", { class: "ring-inner" },
-        h("p", { class: "ring-greet" }, "Temporizador terminado"),
+        h("p", { class: "ring-greet" }, alarm.reminder ? "Recordatorio" : "Temporizador terminado"),
         h("div", { class: "ring-clock" }, "00:00"),
         h("p", { class: "ring-label" }, alarm.timerLabel || "Temporizador"),
         h("p", { class: "ring-muted" }, "Toca la pantalla para activar el sonido"),

@@ -214,7 +214,7 @@ function datesText(dates, evening) {
       : d.kind === "aniversario" ? `el aniversario: ${d.name}${d.age ? `, ${d.age} años` : ""}` : d.name;
     if (!evening && d.inDays === 0) out.push(`¡Hoy es ${what}!`);
     else if (d.inDays === 1) out.push(`Mañana es ${what}.`);
-    else if (!evening && (d.inDays === 3 || d.inDays === 7)) out.push(`Faltan ${d.inDays} días para ${what}.`);
+    else if (!evening && d.src !== "iphone" && (d.inDays === 3 || d.inDays === 7)) out.push(`Faltan ${d.inDays} días para ${what}.`);
   }
   return out;
 }

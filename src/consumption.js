@@ -92,7 +92,7 @@ const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", 
 export const label = (month) => `${MONTHS[Number(month.slice(5, 7)) - 1]} de ${month.slice(0, 4)}`;
 
 // Coste de un mes. Si es el mes en curso, hasta ahora. perDay = kWh por día.
-async function monthCost(env, month, perDay) {
+async function monthCost(env, month, perDay, forced = null) {
   const today = fKey.format(new Date());
   const nowH = Number(fHour.format(new Date()));
   const total = daysIn(month);
@@ -112,7 +112,7 @@ async function monthCost(env, month, perDay) {
 
   let kwh = 0, energy = 0, fixed = 0, missing = 0;
   days.forEach((key, i) => {
-    const c = contractFor(key);
+    const c = forced || contractFor(key);
     const share = key === today ? PROFILE.slice(0, nowH + 1).reduce((a, b) => a + b, 0) : 1;
     const dayKwh = perDay * share;
     kwh += dayKwh;
@@ -137,6 +137,29 @@ async function monthCost(env, month, perDay) {
 
 const cache = new Map(); // isolate: el resumen vale 20 min
 
+// Contrato con el que comparar: el anterior al que se usa ese mes (p. ej. Billinge frente a
+// Cheap Energy). Así se ve cada mes si el cambio compensa.
+const shortName = (c) => String(c.name || "el contrato anterior").split(/[,(]/)[0].trim();
+function compareFor(month) {
+  const list = [...(config().contracts || [])].sort((a, b) => (a.from < b.from ? -1 : 1));
+  const last = `${month}-${String(daysIn(month)).padStart(2, "0")}`;
+  const cur = contractFor(last);
+  const i = list.indexOf(cur);
+  return i > 0 ? { cur, prev: list[i - 1] } : null;
+}
+async function withCompare(env, month, perDay, result) {
+  const cmp = compareFor(month);
+  if (!cmp) return result;
+  const alt = await monthCost(env, month, perDay, cmp.prev);
+  const factor = result.kr ? (result.forecastKr || result.kr) / result.kr : 1;
+  result.compare = {
+    name: shortName(cmp.prev), current: shortName(cmp.cur),
+    kr: alt.kr, forecastKr: Math.round(alt.kr * factor),
+    savedKr: Math.round(alt.kr - result.kr), savedForecastKr: Math.round((alt.kr - result.kr) * factor),
+  };
+  return result;
+}
+
 // Resumen para el panel y la voz: mes en curso (estimado) y meses apuntados (calculados)
 export async function powerMonth(env) {
   const month = monthOf(fKey.format(new Date()));
@@ -149,10 +172,12 @@ export async function powerMonth(env) {
   current.forecastKr = current.days ? round(current.kr / (current.days - 1 + PROFILE.slice(0, Number(fHour.format(new Date())) + 1).reduce((a, b) => a + b, 0)) * current.totalDays) : 0;
   current.forecastKwh = round(rate.perDay * current.totalDays);
   current.basis = rate.basis;
+  await withCompare(env, month, rate.perDay, current);
   const past = [];
   for (const r of readings.slice(-6).reverse()) {
     const c = await monthCost(env, r.month, r.kwh / daysIn(r.month)).catch(() => null);
-    if (c) past.push({ month: r.month, label: c.label, kwh: r.kwh, kr: c.kr, perKwh: c.perKwh, missingDays: c.missingDays });
+    if (c) await withCompare(env, r.month, r.kwh / daysIn(r.month), c);
+    if (c) past.push({ month: r.month, label: c.label, kwh: r.kwh, kr: c.kr, perKwh: c.perKwh, missingDays: c.missingDays, compare: c.compare || null });
   }
   const data = { current, past, readings: readings.map((r) => r.month) };
   cache.set(month, { at: Date.now(), data });
@@ -164,5 +189,6 @@ export async function powerMonthText(env) {
   const { current: c, past } = await powerMonth(env);
   const last = past[0];
   const prev = last ? ` En ${last.label} fueron ${last.kwh} kilovatios hora, unas ${last.kr} coronas.` : " Cuando llegue la factura, apunta los kilovatios hora del mes y el cálculo será exacto.";
-  return `Este mes llevamos unos ${c.kwh} kilovatios hora y unas ${c.kr} coronas de luz, contando la red y los impuestos. A este ritmo, el mes completo saldrá por unas ${c.forecastKr} coronas. Es una estimación con ${c.basis}.${prev}`;
+  const cmp = c.compare ? ` Con ${c.compare.name} habrían sido unas ${c.compare.forecastKr} coronas: ${c.compare.savedForecastKr >= 0 ? `ahorran unas ${c.compare.savedForecastKr}` : `pagan unas ${-c.compare.savedForecastKr} más`}.` : "";
+  return `Este mes llevamos unos ${c.kwh} kilovatios hora y unas ${c.kr} coronas de luz, contando la red y los impuestos. A este ritmo, el mes completo saldrá por unas ${c.forecastKr} coronas.${cmp} Es una estimación con ${c.basis}.${prev}`;
 }

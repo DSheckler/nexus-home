@@ -7,6 +7,8 @@ import { agendaRange, createEvent, updateEvent, deleteEvent } from "./calendar.j
 import { googleConfigured, calendarsConfig } from "./google.js";
 import { listAlarms, createAlarm, updateAlarm, deleteAlarm } from "./alarms.js";
 import * as H from "./household.js";
+import * as P from "./planner.js";
+import { getWeeklyBriefing } from "./weekly.js";
 import { householdContext, getBriefing, planCheapPower, runRoutine } from "./extras.js";
 
 // Peticiones de resumen: se responden con el resumen exacto generado por código (sin IA)
@@ -17,6 +19,7 @@ const ROUTINES = [
   { name: "salir", re: new RegExp(LEAD + String.raw`(?:me voy|nos vamos|me marcho|nos marchamos|salgo|salimos|ya me voy|ya nos vamos)(?:\s+(?:al|a la|a)\s+[a-z ]{2,20})?(?:[\s,]+nexus)?[\s.!,]*$`, "i") },
   { name: "llegar", re: new RegExp(LEAD + String.raw`(?:ya\s+)?(?:he llegado|hemos llegado|llegue|llegamos|estoy en casa|estamos en casa)(?:\s+a casa)?(?:[\s,]+nexus)?[\s.!,]*$`, "i") },
 ];
+const WEEKLY = /\b(resumen|que (hay|tenemos|tengo)|como (viene|va)|plan(es)?)\b.*\b(semana|semanal)\b|\bresumen semanal\b/i;
 const SUMMARY = /\b(resumen|res[uú]me(me|lo)?|ponme al d[ií]a|c[oó]mo (viene|va|est[aá]) (el|mi|hoy|el d[ií]a)|qu[eé] (hay|tengo) (para )?hoy|novedades)\b/i;
 import { getDevices, controlDevice, listDeviceConfig } from "./devices.js";
 import { quickAnswer } from "./quick.js";
@@ -60,6 +63,8 @@ Herramientas:
 - Luces y enchufes de casa: usa estado_casa y controlar_dispositivo; si no hay dispositivos configurados, dilo.
 - Precio de la luz: en los datos actuales viene el spot y el precio real (con red, impuesto e IVA) y el contrato. "Avísame cuando la luz esté barata para la lavadora": avisar_luz_barata.
 - Cumpleaños y aniversarios: guardar_fecha / borrar_fecha / ver_fechas. Las próximas vienen en los datos actuales.
+- Recordatorios con día y hora ("recuérdame el jueves a las 18 sacar la basura"): crear_recordatorio con fecha y hora exactas calculadas desde la fecha actual; ver_recordatorios; borrar_recordatorio. Para "en 10 minutos" usa un temporizador.
+- Tareas de la casa con turnos (regar plantas cada 3 días, le toca a…): ver_tareas, crear_tarea, tarea_hecha ("ya regué las plantas"), borrar_tarea.
 - Avisos de SMHI vienen en los datos actuales.`;
 
 const S = (props, required = []) => ({ type: "object", properties: props, required });
@@ -193,6 +198,41 @@ function buildTools(env, changed) {
       parameters: S({}),
       run: () => H.upcomingDates(env, 366),
     },
+    crear_recordatorio: {
+      description: "Crea un recordatorio que suena en el panel a una fecha y hora concretas (hora de Suecia).",
+      parameters: S({ texto: { type: "string", description: "Qué recordar, corto, p. ej. 'sacar la basura'" }, fecha: DATE, hora: TIME, persona: { type: "string", description: "Para quién (opcional)" } }, ["texto", "fecha", "hora"]),
+      run: async (a) => { const r = await P.addReminder(env, { text: a.texto, date: a.fecha, time: a.hora, who: a.persona }); changed.home = true; return { creado: { texto: r.text, cuando: P.whenText(r.at) } }; },
+    },
+    ver_recordatorios: {
+      description: "Lista los recordatorios pendientes con su fecha y hora.",
+      parameters: S({}),
+      run: async () => (await P.listReminders(env)).filter((r) => r.at > Date.now()).map((r) => ({ id: r.id, texto: r.text, cuando: P.whenText(r.at) })),
+    },
+    borrar_recordatorio: {
+      description: "Borra un recordatorio por su id o por parte del texto.",
+      parameters: S({ cual: { type: "string" } }, ["cual"]),
+      run: async (a) => { await P.deleteReminder(env, a.cual); changed.home = true; return { borrado: true }; },
+    },
+    ver_tareas: {
+      description: "Tareas de la casa: cada cuánto se hacen, a quién le toca y cuándo vence (dias_para_vencer negativo = atrasada).",
+      parameters: S({}),
+      run: async () => (await P.listChores(env)).map((c) => ({ tarea: c.name, cada_dias: c.every, le_toca: c.who, vence: c.due, dias_para_vencer: c.dueIn })),
+    },
+    crear_tarea: {
+      description: "Crea una tarea de la casa que se repite cada N días, con turnos entre personas (opcional).",
+      parameters: S({ nombre: { type: "string" }, cada_dias: { type: "integer", minimum: 1, maximum: 365 }, personas: { type: "array", items: { type: "string" }, description: "Nombres en el orden de los turnos" } }, ["nombre", "cada_dias"]),
+      run: async (a) => { const c = await P.addChore(env, { name: a.nombre, every: a.cada_dias, people: a.personas }); changed.home = true; return { creada: { tarea: c.name, le_toca: c.who } }; },
+    },
+    tarea_hecha: {
+      description: "Marca una tarea de la casa como hecha hoy; pasa el turno a la siguiente persona.",
+      parameters: S({ nombre: { type: "string" } }, ["nombre"]),
+      run: async (a) => { const r = await P.doneChore(env, a.nombre); changed.home = true; return { hecha: r.done.name, proxima_vez: r.done.due, le_toca_ahora: r.done.who }; },
+    },
+    borrar_tarea: {
+      description: "Borra una tarea de la casa.",
+      parameters: S({ nombre: { type: "string" } }, ["nombre"]),
+      run: async (a) => { await P.deleteChore(env, a.nombre); changed.home = true; return { borrada: true }; },
+    },
     resumen_del_dia: {
       description: "Resumen exacto del día (tiempo, avisos, agenda pendiente, cumpleaños, notas, luz). Úsalo para cualquier petición de resumen y repite su texto tal cual.",
       parameters: S({}),
@@ -306,6 +346,9 @@ export async function askAssistant(env, { text, history = [] }) {
     const r = await runRoutine(env, routine.name);
     if (r.home) changed.home = true;
     return { reply: r.reply, changed, end: !!r.end, model: "rutina:" + routine.name, neurons: 0 };
+  }
+  if (WEEKLY.test(plain) && question.length < 80) {
+    return { reply: await getWeeklyBriefing(env), changed, model: "directo", neurons: 0 };
   }
   if (SUMMARY.test(question) && question.length < 80) {
     return { reply: await getBriefing(env), changed, model: "resumen", neurons: 0 };

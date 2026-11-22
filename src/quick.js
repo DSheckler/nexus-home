@@ -8,6 +8,7 @@ import * as H from "./household.js";
 import { getPower, nextAlarmText } from "./extras.js";
 import { config } from "./config.js";
 import { powerMonthText } from "./consumption.js";
+import * as P from "./planner.js";
 
 const TZ = "Europe/Stockholm";
 const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
@@ -122,6 +123,52 @@ const INTENTS = [
       const pending = (await H.listShopping(env)).filter((i) => !i.done).map((i) => i.text);
       if (!pending.length) return "La lista de la compra está vacía.";
       return `En la lista hay ${pending.length === 1 ? "una cosa" : pending.length + " cosas"}: ${pending.slice(0, 12).join(", ")}.`;
+    },
+  },
+
+  // ---------- recordatorio con hora: "recuérdame mañana a las 6 de la tarde sacar la basura" ----------
+  {
+    re: /^(?:recuerdame|recuerdanos|avisame|avisanos)(?: que)? (?:(hoy|manana|pasado manana|el (lunes|martes|miercoles|jueves|viernes|sabado|domingo)) )?a las (\d{1,2})(?:(?::| )(\d{2})| y (media|cuarto))?(?: (?:de la|por la) (manana|tarde|noche))? (?:que |de |para )?(.{2,120})$/,
+    run: async (m, env, changed) => {
+      const [, when, wd, hh, mm, frac, part, text] = m;
+      let h = Number(hh);
+      const min = mm ? Number(mm) : frac === "media" ? 30 : frac === "cuarto" ? 15 : 0;
+      if (h > 23 || min > 59) return null;
+      if ((part === "tarde" || part === "noche") && h < 12) h += 12;
+      const today = P.todayKey();
+      let date = today;
+      if (when === "manana") date = P.addDays(today, 1);
+      else if (when === "pasado manana") date = P.addDays(today, 2);
+      else if (wd) {
+        const target = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"].indexOf(wd);
+        const dow = new Date(today + "T12:00:00Z").getUTCDay();
+        date = P.addDays(today, (target - dow + 7) % 7);
+      }
+      const time = String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+      let at = P.stockholmToMs(date, time);
+      if (at < Date.now()) {
+        if (wd) at = P.stockholmToMs(P.addDays(date, 7), time);
+        else if (!when && !part && h < 12 && P.stockholmToMs(date, String(h + 12).padStart(2, "0") + ":" + String(min).padStart(2, "0")) > Date.now()) at = P.stockholmToMs(date, String(h + 12).padStart(2, "0") + ":" + String(min).padStart(2, "0"));
+        else if (!when) at = P.stockholmToMs(P.addDays(date, 1), time);
+        else return null;
+      }
+      const r = await P.addReminder(env, { text, at });
+      changed.home = true;
+      return `Vale, te lo recuerdo el ${P.whenText(r.at)}: ${r.text}.`;
+    },
+  },
+
+  // ---------- tareas de la casa ----------
+  {
+    re: /^(que tareas (hay|tenemos|tocan|quedan|me tocan|hay que hacer)( hoy| esta semana| pendientes)?|(las )?tareas( de (hoy|la casa|la semana))?|a quien le toca( hoy)?( .{2,40})?)$/,
+    run: async (m, env) => {
+      const list = await P.listChores(env);
+      if (!list.length) return "No hay tareas de la casa apuntadas. Puedes crearlas en el panel, en Tareas.";
+      const due = list.filter((c) => c.dueIn <= 0);
+      const say = (c) => `${c.name}${c.who ? `, le toca a ${c.who}` : ""}`;
+      if (due.length) return `Hoy toca: ${due.slice(0, 5).map(say).join("; ")}.`;
+      const next = list[0];
+      return `Hoy no toca ninguna tarea. La próxima es ${say(next)}, ${next.dueIn === 1 ? "mañana" : `dentro de ${next.dueIn} días`}.`;
     },
   },
 

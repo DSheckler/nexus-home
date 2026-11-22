@@ -13,21 +13,24 @@ import { getDevices, controlDevice, setDeviceConfig } from "./devices.js";
 import { loadConfig, config } from "./config.js";
 import { notify } from "./hub.js";
 import { powerMonth, saveReading, deleteReading } from "./consumption.js";
+import * as P from "./planner.js";
+import { getWeeklyBriefing } from "./weekly.js";
 
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.13.0";
+const VERSION = "1.14.0";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
   const safe = (p) => p.catch(() => null);
-  const [timers, shopping, notes, garbage, power, warnings, settings, dates] = await Promise.all([
+  const [timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores] = await Promise.all([
     safe(H.listTimers(env)), safe(H.listShopping(env)), safe(H.listNotes(env)),
     safe(H.nextPickups(env)), safe(getPower()), safe(getWarnings()), safe(H.getSettings(env)), safe(H.upcomingDates(env, 7)),
+    safe(P.listReminders(env)), safe(P.listChores(env)),
   ]);
   const ai = { used: await getUsage(env).catch(() => 0), free: DAILY_FREE };
-  return { timers, shopping, notes, garbage, power, warnings, settings, dates, ai, now: Date.now() };
+  return { timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, ai, now: Date.now() };
 }
 
 const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // ~1 minuto de voz comprimida
@@ -130,7 +133,7 @@ function safeEqual(a, b) {
 
 // Dos claves: la de la tablet (acceso completo) y la familiar (solo compra y notas,
 // para los móviles). Si se pierde un móvil, basta con cambiar la familiar.
-function scopeOf(request, env) {
+async function scopeOf(request, env) {
   let key = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   // WebSocket: el navegador no permite cabeceras, la clave va como subprotocolo ("nexus", clave)
   if (!key && request.headers.get("Upgrade") === "websocket") {
@@ -138,15 +141,18 @@ function scopeOf(request, env) {
   }
   if (env.NEXUS_TOKEN && safeEqual(key, env.NEXUS_TOKEN)) return "full";
   if (env.FAMILY_TOKEN && safeEqual(key, env.FAMILY_TOKEN)) return "family";
+  if (await P.isGuest(env, key)) return "guest";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?)$/;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done)$/;
+// Invitados: solo la lista de la compra y las notas de texto
+const GUEST_PATHS = /^\/api\/(?:(shopping|notes)(\/[a-z0-9]{1,20})?|config|live)$/;
 
 // El asistente cambió algo de la casa: los móviles reciben la lista y las notas al momento
 function pushHome(env, ctx) {
   const p = Promise.all([H.listShopping(env), H.listNotes(env)]).then(([items, notes]) => Promise.all([
-    notify(env, null, { type: "shopping", items }, "family"),
-    notify(env, null, { type: "notes", notes, added: null }, "family"),
+    notify(env, null, { type: "shopping", items }, ["family", "guest"]),
+    notify(env, null, { type: "notes", notes, added: null }, ["family", "guest"]),
   ])).catch(() => {});
   if (ctx) ctx.waitUntil(p);
 }
@@ -165,9 +171,10 @@ async function handleApi(request, env, url, ctx) {
   }
 
   // Todo lo demás exige una clave; la familiar solo sirve para compra y notas
-  const scope = scopeOf(request, env);
+  const scope = await scopeOf(request, env);
   if (!scope) return json({ ok: false, error: "unauthorized" }, 401);
   if (scope === "family" && !FAMILY_PATHS.test(path)) return json({ ok: false, error: "forbidden" }, 403);
+  if (scope === "guest" && !GUEST_PATHS.test(path)) return json({ ok: false, error: "forbidden" }, 403);
 
   if (path === "/api/weather" && method === "GET") {
     return json({ ok: true, ...(await getWeather()) }, 200, 300);
@@ -216,7 +223,7 @@ async function handleApi(request, env, url, ctx) {
     return json({ ok: true, neurons: await getUsage(env), voiceLimit: VOICE_LIMIT, dailyFree: DAILY_FREE });
   }
 
-  if (path === "/api/config" && method === "GET") return json({ ok: true, city: config().city, family: config().family });
+  if (path === "/api/config" && method === "GET") return json({ ok: true, city: config().city, family: config().family, scope });
   if (path === "/api/home" && method === "GET") {
     const [home, month] = await Promise.all([homeSnapshot(env), powerMonth(env).catch(() => null)]);
     return json({ ok: true, ...home, powerMonth: month });
@@ -227,17 +234,63 @@ async function handleApi(request, env, url, ctx) {
   if (path === "/api/power/readings" && method === "POST") {
     await saveReading(env, await body(request));
     const month = await powerMonth(env);
-    notify(env, ctx, { type: "powerMonth", powerMonth: month });
+    notify(env, ctx, { type: "powerMonth", powerMonth: month }, ["full", "family"]);
     return json({ ok: true, ...month });
   }
   const mt0 = path.match(/^\/api\/power\/readings\/(\d{4}-\d{2})$/);
   if (mt0 && method === "DELETE") {
     await deleteReading(env, mt0[1]);
     const month = await powerMonth(env);
-    notify(env, ctx, { type: "powerMonth", powerMonth: month });
+    notify(env, ctx, { type: "powerMonth", powerMonth: month }, ["full", "family"]);
     return json({ ok: true, ...month });
   }
-  if (path === "/api/briefing" && method === "GET") return json({ ok: true, text: url.searchParams.get("evening") ? await getEveningBriefing(env) : await getBriefing(env, { morning: !!url.searchParams.get("morning") }) });
+  if (path === "/api/briefing" && method === "GET") {
+    const q = url.searchParams;
+    const text = q.get("weekly") ? await getWeeklyBriefing(env) : q.get("evening") ? await getEveningBriefing(env) : await getBriefing(env, { morning: !!q.get("morning") });
+    return json({ ok: true, text });
+  }
+
+  // Cumpleaños de los contactos del iPhone (los envía un Atajo): JSON {items:[{name,date}]} o
+  // texto con una línea por persona "Nombre;AAAA-MM-DD"
+  if (path === "/api/dates/import" && method === "POST") {
+    const raw = await request.text();
+    let items;
+    try { const j = JSON.parse(raw); items = Array.isArray(j) ? j : j.items; } catch { items = H.parseDateLines(raw); }
+    const r = await H.importDates(env, items);
+    notify(env, ctx, { type: "refresh" }, ["full"]);
+    return json({ ok: true, ...r, message: `NEXUS: ${r.imported} cumpleaños importados` + (r.skipped ? `, ${r.skipped} sin fecha válida o repetidos` : "") });
+  }
+
+  // Recordatorios con fecha y hora
+  const remDone = async (status = 200) => { const reminders = await P.listReminders(env); notify(env, ctx, { type: "reminders", reminders }, ["full", "family"]); return json({ ok: true, reminders }, status); };
+  if (path === "/api/reminders") {
+    if (method === "GET") return json({ ok: true, reminders: await P.listReminders(env) });
+    if (method === "POST") { await P.addReminder(env, await body(request)); return remDone(201); }
+  }
+  let mr = path.match(/^\/api\/reminders\/([a-z0-9]{1,20})$/);
+  if (mr && method === "DELETE") { await P.deleteReminder(env, mr[1]); return remDone(); }
+
+  // Tareas de la casa
+  const choresDone = async (extra = {}, status = 200) => { const chores = await P.listChores(env); notify(env, ctx, { type: "chores", chores }, ["full", "family"]); return json({ ok: true, chores, ...extra }, status); };
+  if (path === "/api/chores") {
+    if (method === "GET") return json({ ok: true, chores: await P.listChores(env) });
+    if (method === "POST") { await P.addChore(env, await body(request)); return choresDone({}, 201); }
+  }
+  mr = path.match(/^\/api\/chores\/([a-z0-9]{1,20})\/done$/);
+  if (mr && method === "POST") { const r = await P.doneChore(env, mr[1]); return choresDone({ doneBy: r.doneBy }); }
+  mr = path.match(/^\/api\/chores\/([a-z0-9]{1,20})$/);
+  if (mr && method === "DELETE") { await P.deleteChore(env, mr[1]); return choresDone(); }
+
+  // Enlaces de invitado (temporales)
+  if (path === "/api/guests") {
+    if (method === "GET") return json({ ok: true, guests: (await P.listGuests(env)).map(({ token, ...g }) => ({ ...g, url: `${url.origin}/movil.html#k=${token}` })) });
+    if (method === "POST") {
+      const g = await P.createGuest(env, await body(request));
+      return json({ ok: true, guest: { id: g.id, name: g.name, expires: g.expires, url: `${url.origin}/movil.html#k=${g.token}` } }, 201);
+    }
+  }
+  mr = path.match(/^\/api\/guests\/([a-z0-9]{1,20})$/);
+  if (mr && method === "DELETE") { await P.deleteGuest(env, mr[1]); return json({ ok: true }); }
 
   // Temporizadores
   if (path === "/api/timers" && method === "POST") return json({ ok: true, timer: await H.createTimer(env, await body(request)) }, 201);

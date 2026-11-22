@@ -28,7 +28,7 @@
     header { display: flex; align-items: baseline; justify-content: space-between; padding: 18px 0 10px; }
     h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
     .who { font-size: 15px; color: var(--muted); background: none; border: 0; padding: 4px 0; }
-    .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; background: var(--line); padding: 4px; border-radius: 12px; margin: 6px 0 18px; }
+    .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--line); padding: 4px; border-radius: 12px; margin: 6px 0 18px; }
     .tabs button { border: 0; border-radius: 9px; padding: 9px; font: inherit; font-weight: 500; background: transparent; color: var(--text); }
     .tabs button[aria-selected="true"] { background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
     .panel { background: var(--panel); border-radius: 16px; overflow: hidden; }
@@ -70,6 +70,9 @@
     .pw-l { font-size: 13px; color: var(--muted); margin-top: 2px; }
     .pw-note { font-size: 13px; color: var(--muted); margin: 6px 2px 16px; }
     .pw-h { font-size: 15px; font-weight: 600; margin: 18px 2px 8px; }
+    .chore-done { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 600; background: var(--sun); color: var(--sun-ink); }
+    li.due .txt { color: var(--sun-ink); font-weight: 600; }
+    .guest-note { text-align: center; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
     .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
   </style>
 </head>
@@ -92,6 +95,7 @@
     <div class="tabs" role="tablist">
       <button type="button" role="tab" id="tabShop" aria-selected="true">Compra</button>
       <button type="button" role="tab" id="tabNotes" aria-selected="false">Notas</button>
+      <button type="button" role="tab" id="tabChores" aria-selected="false">Tareas</button>
       <button type="button" role="tab" id="tabPower" aria-selected="false">Luz</button>
     </div>
 
@@ -118,6 +122,21 @@
       <button class="rec" id="recBtn" type="button"><span class="dot"></span><span id="recText">Grabar nota de voz</span></button>
       <p class="hint" id="recHint">Toca para empezar y otra vez para enviarla (máx. 1 minuto).</p>
     </section>
+    <section id="chores" class="hidden">
+      <div class="panel"><ul id="choreList"></ul></div>
+      <form id="choreForm" class="note-form">
+        <div class="row">
+          <input id="choreName" type="text" maxlength="40" placeholder="Nueva tarea…" aria-label="Tarea">
+          <select id="choreEvery" aria-label="Cada cuánto">
+            <option value="1">Cada día</option><option value="2">Cada 2 días</option><option value="3">Cada 3 días</option>
+            <option value="7" selected>Cada semana</option><option value="14">Cada 2 semanas</option><option value="30">Cada mes</option>
+          </select>
+        </div>
+        <button class="btn" type="submit">Añadir tarea</button>
+      </form>
+      <p class="pw-note">Los turnos entre personas se eligen en el panel. Al marcarla hecha, pasa al siguiente.</p>
+    </section>
+
     <section id="power" class="hidden">
       <div class="pw-cards">
         <div class="pw-card"><div class="pw-v" id="pwNow">–</div><div class="pw-l" id="pwNowL">este mes hasta hoy</div></div>
@@ -136,6 +155,7 @@
       <p class="pw-h">Meses con factura</p>
       <div class="panel"><ul id="pwList"></ul></div>
     </section>
+    <button class="link" id="inviteBtn" type="button">Invitar a alguien (enlace de 24 h)</button>
     <p class="status" id="status"></p>
   </main>
 
@@ -185,7 +205,8 @@
           body: opts.body ? JSON.stringify(opts.body) : undefined,
           cache: "no-store",
         });
-        if (r.status === 401 || r.status === 403) { $("status").textContent = "Este enlace ya no es válido. Pide uno nuevo."; throw new Error("auth"); }
+        if (r.status === 401) { $("status").textContent = "Este enlace ya no es válido. Pide uno nuevo."; throw new Error("auth"); }
+        if (r.status === 403) throw new Error("auth"); // sin permiso para esto (p. ej. invitados): se ignora
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || "error");
         return j;
@@ -334,6 +355,7 @@
           if (msg.type === "shopping" && Array.isArray(msg.items)) renderShop(msg.items);
           if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
           if (msg.type === "powerMonth" && msg.powerMonth) renderPower(msg.powerMonth);
+          if (msg.type === "chores" && Array.isArray(msg.chores)) renderChores(msg.chores);
         };
         live.onclose = () => { clearInterval(livePing); live = null; if (document.visibilityState === "visible") { setTimeout(connectLive, liveRetry); liveRetry = Math.min(liveRetry * 2, 60000); } };
         live.onerror = () => { try { live.close(); } catch { /* */ } };
@@ -385,18 +407,56 @@
         setTimeout(() => ($("status").textContent = ""), 3000);
       });
 
+      // ---------- Tareas de la casa ----------
+      function renderChores(list) {
+        const ul = $("choreList"); ul.replaceChildren();
+        if (!list.length) { ul.append(el("li", "empty", "Aún no hay tareas.")); return; }
+        for (const c of list) {
+          const li = el("li", c.dueIn <= 0 ? "due" : "");
+          const when = c.dueIn < 0 ? `atrasada ${-c.dueIn} d` : c.dueIn === 0 ? "toca hoy" : c.dueIn === 1 ? "mañana" : `en ${c.dueIn} días`;
+          const txt = el("span", "txt", c.name);
+          txt.append(el("span", "meta", when + (c.who ? " · le toca a " + c.who : "")));
+          const done = el("button", "chore-done", "Hecho"); done.type = "button";
+          done.addEventListener("click", async () => {
+            try { const j = await api("/api/chores/" + c.id + "/done", { method: "POST" }); renderChores(j.chores); $("status").textContent = "Hecho: " + c.name; setTimeout(() => ($("status").textContent = ""), 2500); } catch { /* */ }
+          });
+          li.append(txt, done); ul.append(li);
+        }
+      }
+      async function loadChores() { try { renderChores((await api("/api/chores")).chores); } catch { /* sin conexión */ } }
+      $("choreForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = $("choreName").value.trim();
+        if (!name) return;
+        try { const j = await api("/api/chores", { method: "POST", body: { name, every: Number($("choreEvery").value) } }); renderChores(j.chores); $("choreName").value = ""; }
+        catch (err) { $("status").textContent = err.message || "No se pudo añadir"; }
+      });
+
+      // ---------- Invitar: enlace temporal para una visita ----------
+      $("inviteBtn").addEventListener("click", async () => {
+        try {
+          const j = await api("/api/guests", { method: "POST", body: { hours: 24 } });
+          const url = j.guest.url;
+          if (navigator.share) { await navigator.share({ title: "NEXUS · lista de la compra", text: "Lista de la compra y notas de casa (válido 24 h)", url }).catch(() => {}); }
+          else if (navigator.clipboard) { await navigator.clipboard.writeText(url); $("status").textContent = "Enlace copiado: válido 24 horas"; }
+          else prompt("Enlace de invitado (24 h):", url);
+        } catch (err) { $("status").textContent = err.message || "No se pudo crear el enlace"; }
+      });
+
       // ---------- Pestañas y actualización ----------
       function tab(which) {
-        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["power", "tabPower"]]) {
+        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["chores", "tabChores"], ["power", "tabPower"]]) {
           $(t).classList.toggle("hidden", t !== which);
           $(id).setAttribute("aria-selected", String(t === which));
         }
         store.set("tab", which);
         if (which === "power") loadPower();
+        if (which === "chores") loadChores();
       }
       $("tabShop").addEventListener("click", () => tab("shop"));
       $("tabNotes").addEventListener("click", () => tab("notes"));
       $("tabPower").addEventListener("click", () => tab("power"));
+      $("tabChores").addEventListener("click", () => tab("chores"));
       tab(store.get("tab") || "shop");
 
       async function load() {
@@ -407,6 +467,12 @@
       }
       // La familia viene de la configuración del servidor
       api("/api/config").then((c) => {
+        if (c.scope === "guest") {
+          for (const id of ["tabChores", "tabPower", "recBtn", "recHint", "inviteBtn"]) $(id).classList.add("hidden");
+          if (["chores", "power"].includes(store.get("tab"))) tab("shop");
+          const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de la compra y dejar notas.");
+          $("app").prepend(note);
+        }
         PEOPLE = c.family || [];
         for (const name of PEOPLE) $("noteTo").append(new Option(name, name));
         renderWho();

@@ -202,7 +202,7 @@ export async function addDate(env, { name, date, kind }) {
   if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) throw new Error("Fecha no válida (AAAA-MM-DD o MM-DD)");
   const k = ["cumpleaños", "aniversario", "fecha"].includes(kind) ? kind : "cumpleaños";
   const list = (await listDates(env)).filter((d) => !(d.name.toLowerCase() === n.toLowerCase() && d.kind === k));
-  if (list.length >= 60) throw new Error("Máximo 60 fechas");
+  if (list.filter((d) => d.src !== "iphone").length >= 60) throw new Error("Máximo 60 fechas");
   const d = { id: "d" + uid(), name: n, kind: k, md: `${m[2]}-${m[3]}`, year: m[1] ? Number(m[1]) : null };
   await putList(env, "dates", [...list, d]);
   return d;
@@ -217,7 +217,42 @@ export async function deleteDate(env, which) {
   return left;
 }
 
-// Próximas fechas en los siguientes `days` días: [{ id, name, kind, date, inDays, age, title }]
+// Cumpleaños de los contactos del iPhone (los envía un Atajo). Sustituye la importación
+// anterior; las fechas guardadas a mano no se tocan y tienen prioridad.
+// items: [{ name, date }] con date "AAAA-MM-DD" (el iPhone pone 1604 si no hay año), "MM-DD" o "--MM-DD"
+export function parseDateLines(text) {
+  return String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+    const m = l.match(/^(.+?)\s*[;:\t|]\s*(\S+)$/);
+    return m ? { name: m[1], date: m[2] } : null;
+  }).filter(Boolean);
+}
+export async function importDates(env, items) {
+  if (!Array.isArray(items)) throw new Error("Lista de cumpleaños no válida");
+  const manual = (await listDates(env)).filter((d) => d.src !== "iphone");
+  const taken = new Set(manual.map((d) => d.name.toLowerCase()));
+  const seen = new Set();
+  const out = [];
+  let skipped = 0;
+  for (const it of items.slice(0, 1000)) {
+    const name = clip(it && it.name, 40);
+    const raw = String((it && it.date) || "").trim();
+    let m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/) || raw.match(/^-{0,2}()(\d{2})-(\d{2})$/);
+    if (!m) { const e = raw.match(/^(\d{1,2})[./](\d{1,2})(?:[./](\d{4}))?$/); if (e) m = [raw, e[3] || "", e[2].padStart(2, "0"), e[1].padStart(2, "0")]; }
+    if (!name || !m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) { skipped++; continue; }
+    const key = name.toLowerCase();
+    if (taken.has(key) || seen.has(key)) { skipped++; continue; }
+    seen.add(key);
+    const year = m[1] && +m[1] >= 1900 ? +m[1] : null; // 1604 = cumpleaños sin año en el iPhone
+    out.push({ id: "d" + uid(), name, kind: "cumpleaños", md: `${m[2]}-${m[3]}`, year, src: "iphone" });
+    if (out.length >= 400) break;
+  }
+  await putList(env, "dates", [...manual, ...out]);
+  return { imported: out.length, skipped, manual: manual.length };
+}
+
+// Próximas fechas en los siguientes `days` días: [{ id, name, kind, date, inDays, age, title, src }]
+// Los cumpleaños importados del iPhone solo salen si faltan 7 días o menos (para no llenar la
+// agenda de conocidos), salvo cuando se piden todas (days >= 366).
 export async function upcomingDates(env, days = 30) {
   const today = fKey.format(new Date());
   const year = Number(today.slice(0, 4));
@@ -227,10 +262,11 @@ export async function upcomingDates(env, days = 30) {
       const date = `${y}-${d.md}`;
       const inDays = daysBetween(today, date);
       if (inDays < 0 || inDays > days) continue;
+      if (d.src === "iphone" && days < 366 && inDays > 7) break;
       const age = d.year ? y - d.year : null;
       const title = d.kind === "cumpleaños" ? `Cumpleaños de ${d.name}${age ? ` (${age})` : ""}`
         : d.kind === "aniversario" ? `Aniversario: ${d.name}${age ? ` (${age} años)` : ""}` : d.name;
-      out.push({ id: d.id, name: d.name, kind: d.kind, date, inDays, age, title });
+      out.push({ id: d.id, name: d.name, kind: d.kind, date, inDays, age, title, src: d.src || null });
       break;
     }
   }

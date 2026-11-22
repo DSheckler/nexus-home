@@ -401,6 +401,7 @@
   function renderActions() {
     const actions = [
       { icon: "alarm", label: "Alarmas", run: () => ALARMS.openSheet() },
+      { icon: "check", label: "Tareas", run: () => window.NexusHome && window.NexusHome.openChores() },
       { icon: "music", label: "Música", run: () => window.NexusHome && window.NexusHome.openMusic() },
       { icon: "home", label: "Casa", run: () => window.NexusHome && window.NexusHome.openHouse() },
     ];
@@ -507,7 +508,8 @@
     if (n.min < start || n.min > start + 10) return;
     try { if (localStorage.getItem("nexus.evening") === eveningKey()) return; localStorage.setItem("nexus.evening", eveningKey()); } catch { return; }
     if (document.hidden || document.querySelector(".ring") || document.body.classList.contains("night")) return;
-    api("/api/briefing?evening=1").then((j) => window.NexusVoice && window.NexusVoice.say(j.text)).catch(() => {});
+    // El domingo, el resumen de la semana que viene en lugar del de mañana
+    api(n.dow === 0 ? "/api/briefing?weekly=1" : "/api/briefing?evening=1").then((j) => window.NexusVoice && window.NexusVoice.say(j.text)).catch(() => {});
   }
   setInterval(checkEvening, 30 * 1000);
 
