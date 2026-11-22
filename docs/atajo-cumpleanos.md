@@ -1,4 +1,16 @@
-# Cumpleaños del iPhone a NEXUS (app Atajos)
+# Cumpleaños del iPhone a NEXUS
+
+## La forma fácil: exportar los contactos (sin Atajo)
+
+1. En la app **Contactos** (iOS 16 o posterior), toca **Listas** arriba a la izquierda.
+2. Mantén pulsada la lista (por ejemplo **Todos los contactos** o **iCloud**) → **Exportar** →
+   **Guardar en Archivos**. Se guarda un archivo `.vcf`.
+3. Abre NEXUS en el móvil → abajo, **Importar cumpleaños de Contactos (archivo .vcf)** → elige el archivo.
+
+El archivo se lee en el propio móvil: a NEXUS solo llegan los nombres y las fechas de cumpleaños.
+Repítelo cuando añadas cumpleaños nuevos; cada importación sustituye a la anterior.
+
+## La forma automática: un Atajo (app Atajos)
 
 El calendario «Cumpleaños» del iPhone sale de los Contactos y no se puede compartir. Este Atajo
 lee los contactos que tienen cumpleaños y los envía a NEXUS. Se puede repetir cuando quieras:

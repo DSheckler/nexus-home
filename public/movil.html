@@ -72,6 +72,7 @@
     .pw-h { font-size: 15px; font-weight: 600; margin: 18px 2px 8px; }
     .chore-done { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 600; background: var(--sun); color: var(--sun-ink); }
     li.due .txt { color: var(--sun-ink); font-weight: 600; }
+    label.link { text-align: center; cursor: pointer; }
     .guest-note { text-align: center; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
     .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
   </style>
@@ -156,6 +157,8 @@
       <div class="panel"><ul id="pwList"></ul></div>
     </section>
     <button class="link" id="inviteBtn" type="button">Invitar a alguien (enlace de 24 h)</button>
+    <label class="link" id="vcfLabel" for="vcfFile">Importar cumpleaños de Contactos (archivo .vcf)</label>
+    <input id="vcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" class="hidden">
     <p class="status" id="status"></p>
   </main>
 
@@ -443,6 +446,43 @@
         } catch (err) { $("status").textContent = err.message || "No se pudo crear el enlace"; }
       });
 
+      // ---------- Cumpleaños desde un archivo de Contactos (vCard) ----------
+      // El archivo se lee en el propio móvil: al servidor solo van los nombres y las fechas.
+      function birthdaysFromVcf(text) {
+        const lines = text.replace(/\r?\n[ \t]/g, "").split(/\r?\n/); // líneas "dobladas" del formato vCard
+        const out = [];
+        let name = "", bday = "";
+        const unesc = (v) => v.replace(/\\([,;\\])/g, "$1").replace(/\\n/gi, " ").trim();
+        for (const line of lines) {
+          const up = line.toUpperCase();
+          if (up.startsWith("BEGIN:VCARD")) { name = ""; bday = ""; continue; }
+          if (up.startsWith("FN") && /^FN[;:]/i.test(line)) { name = unesc(line.slice(line.indexOf(":") + 1)); continue; }
+          if (!name && /^N[;:]/i.test(line)) { const p = line.slice(line.indexOf(":") + 1).split(";"); name = unesc([p[1], p[0]].filter(Boolean).join(" ")); continue; }
+          if (/^(item\d+\.)?BDAY[;:]/i.test(line)) { bday = line.slice(line.lastIndexOf(":") + 1).trim(); continue; }
+          if (up.startsWith("END:VCARD")) {
+            let m = bday.match(/^(\d{4})-?(\d{2})-?(\d{2})/) || bday.match(/^--(\d{2})-?(\d{2})/);
+            if (name && m) {
+              const date = m.length === 4 ? `${m[1]}-${m[2]}-${m[3]}` : `${m[1]}-${m[2]}`;
+              out.push({ name, date });
+            }
+          }
+        }
+        return out;
+      }
+      $("vcfFile").addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!file) return;
+        try {
+          const items = birthdaysFromVcf(await file.text());
+          if (!items.length) { $("status").textContent = "No encontré cumpleaños en ese archivo"; return; }
+          if (!confirm(`Encontré ${items.length} cumpleaños. ¿Enviarlos a NEXUS? (Sustituyen a los importados antes; los guardados a mano no se tocan.)`)) return;
+          const j = await api("/api/dates/import", { method: "POST", body: { items } });
+          $("status").textContent = j.message || "Cumpleaños importados";
+        } catch (err) { $("status").textContent = "No se pudo importar: " + (err.message || "error"); }
+        setTimeout(() => ($("status").textContent = ""), 5000);
+      });
+
       // ---------- Pestañas y actualización ----------
       function tab(which) {
         for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["chores", "tabChores"], ["power", "tabPower"]]) {
@@ -468,7 +508,7 @@
       // La familia viene de la configuración del servidor
       api("/api/config").then((c) => {
         if (c.scope === "guest") {
-          for (const id of ["tabChores", "tabPower", "recBtn", "recHint", "inviteBtn"]) $(id).classList.add("hidden");
+          for (const id of ["tabChores", "tabPower", "recBtn", "recHint", "inviteBtn", "vcfLabel"]) $(id).classList.add("hidden");
           if (["chores", "power"].includes(store.get("tab"))) tab("shop");
           const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de la compra y dejar notas.");
           $("app").prepend(note);

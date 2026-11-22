@@ -19,7 +19,7 @@ import { getWeeklyBriefing } from "./weekly.js";
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.14.1";
+const VERSION = "1.14.2";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
