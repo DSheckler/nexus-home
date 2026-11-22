@@ -21,7 +21,7 @@ import { getAir, getAurora } from "./outdoor.js";
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.15.5";
+const VERSION = "1.15.8";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -228,6 +228,18 @@ async function handleApi(request, env, url, ctx) {
     return json({ ok: true, neurons: await getUsage(env), voiceLimit: VOICE_LIMIT, dailyFree: DAILY_FREE });
   }
 
+  // Diagnóstico de la tablet: errores de JavaScript y toques en los avisos
+  if (path === "/api/log") {
+    if (method === "POST") {
+      const b = await body(request);
+      const e = { at: new Date().toISOString(), ...Object.fromEntries(Object.entries(b || {}).slice(0, 8).map(([k, v]) => [k.slice(0, 20), String(v).slice(0, 300)])) };
+      console.log("tablet", JSON.stringify(e));
+      const list = (await env.NEXUS_KV.get("clientlog", "json")) || [];
+      await env.NEXUS_KV.put("clientlog", JSON.stringify([...list, e].slice(-40)), { expirationTtl: 7 * 86400 });
+      return json({ ok: true });
+    }
+    if (method === "GET") return json({ ok: true, log: (await env.NEXUS_KV.get("clientlog", "json")) || [] });
+  }
   if (path === "/api/config" && method === "GET") return json({ ok: true, city: config().city, family: config().family, scope });
   if (path === "/api/home" && method === "GET") {
     const [home, month] = await Promise.all([homeSnapshot(env), powerMonth(env).catch(() => null)]);

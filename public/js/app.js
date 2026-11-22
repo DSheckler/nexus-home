@@ -566,11 +566,21 @@
   // Si se publica una versión nueva, la tablet se recarga sola
   // (nunca mientras suena una alarma o hay un panel abierto).
   let loadedVersion = null;
+  // Diagnóstico: errores y eventos al servidor (como mucho 15 por carga)
+  let logged = 0;
+  function remoteLog(o) {
+    if (logged++ > 15) return;
+    try { fetch("/api/log", { method: "POST", headers: { Authorization: "Bearer " + (load("token") || ""), "Content-Type": "application/json" }, body: JSON.stringify({ v: loadedVersion || "?", ua: navigator.userAgent.slice(0, 120), w: innerWidth + "x" + innerHeight, ...o }) }).catch(() => {}); } catch { /* */ }
+  }
+  window.NexusLog = remoteLog;
+  window.addEventListener("error", (e) => remoteLog({ type: "error", msg: e.message, src: (e.filename || "").split("/").pop() + ":" + e.lineno }));
+  window.addEventListener("unhandledrejection", (e) => remoteLog({ type: "promesa", msg: String(e.reason && (e.reason.message || e.reason)) }));
+
   async function checkVersion() {
     try {
       const r = await fetch("/api/health", { cache: "no-store" });
       const { version } = await r.json();
-      if (!loadedVersion) loadedVersion = version;
+      if (!loadedVersion) { loadedVersion = version; remoteLog({ type: "carga" }); }
       else if (version !== loadedVersion && !document.querySelector(".ring, .sheet-wrap")) location.reload();
     } catch { /* sin red: se reintenta */ }
   }

@@ -201,6 +201,7 @@
   }
 
   function chip(cls, icon, text, onclick) {
+    if (onclick) { const f = onclick; onclick = (e) => { try { f(e); } catch (err) { if (window.NexusLog) window.NexusLog({ type: "error-toque", what: cls, msg: err.message }); } }; }
     return N.h("button", { class: "pill " + cls + (text ? " has-t" : ""), type: "button", onclick, title: text || null }, N.h("span", { class: "ic", html: N.ICON[icon] }), text ? N.h("span", { class: "pill-t" }, text) : null);
   }
   // Toque doble para acciones que borran algo

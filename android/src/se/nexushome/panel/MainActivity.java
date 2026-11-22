@@ -105,6 +105,9 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
+        // El panel se diseña al 100 %: el tamaño de letra de Android (p. ej. 110 %) lo descuadraba.
+        // Solo afecta a NEXUS; el resto de la tablet sigue con su ajuste.
+        s.setTextZoom(100);
 
         web.addJavascriptInterface(new Bridge(), "NexusAndroid");
 

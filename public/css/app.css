@@ -477,6 +477,10 @@ body.talking .caption:has(.cap-form:not([hidden])) .cap-reply { display: none; }
 /* El texto de estado se recorta antes que empujar los botones fuera de la pantalla */
 /* Fila de estado sobre la hora */
 .topline { display: flex; align-items: center; gap: 2.4rem; margin: 0 0 2rem; min-height: 3.4rem; }
+/* La caja de la hora es más alta que sus números (sobre todo con la letra de Android al 110 %)
+   y tapaba los avisos de arriba: las filas tocables van siempre por delante del reloj. */
+.topline, .date-row, .status-row, .info { position: relative; z-index: 2; }
+.clock { position: relative; z-index: 1; pointer-events: none; }
 /* Avisos informativos arriba (cuota de IA, festivos, temporada, aurora, polen): ocupan el hueco libre */
 .pills.top { flex: 1; gap: .8rem; }
 .pills.top .pill { padding: .35rem 1.2rem .35rem .45rem; font-size: 1.5rem; gap: .6rem; }
