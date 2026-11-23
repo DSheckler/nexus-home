@@ -179,7 +179,7 @@ servidor como secretos `SHELLY_AUTH_KEY` y `SHELLY_SERVER`. Después registra lo
   Otras: selena, aquila (latinoamericanas), sirio, estrella, javier (mexicanas), celeste (colombiana) y nestor,
   alvaro, diana (de España, como carina).
 - **Salir al sistema en la tablet:** mantén presionada la fecha 3 segundos.
-- **Modo noche:** de domingo a jueves desde las 22:00, y los viernes y sábados desde las 00:00. Despierta a
+- **Modo noche** («Cristal de noche»: cielo casi negro con estrellas quietas, reloj en luz de luna, alarma, tiempo de mañana y fase de la luna; brillo al 3 %): de domingo a jueves desde las 22:00, y los viernes y sábados desde las 00:00. Despierta a
   las 07:00 entre semana y a las 08:00 el fin de semana. El horario está en `public/js/app.js`
   (`NIGHT_START` / `NIGHT_END`). Los botones de resumen salen en `briefingSlot()` del mismo archivo.
 - **Cuota gratuita de IA:** 10.000 neuronas al día, que se reinician a las 00:00 UTC. Desde el 70 % aparece

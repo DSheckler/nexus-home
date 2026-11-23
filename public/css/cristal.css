@@ -169,10 +169,49 @@ body[data-sky="night"] .actions .action { background: rgba(255, 255, 255, .07); 
 .action svg { color: var(--text); }
 .action:active { background: var(--text); color: var(--s4); }
 
-/* Modo noche: solo la hora, sin cristales */
-body.night { background: #000; background-image: none; }
-body.night .time-block { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* ---------- Modo noche «Cristal de noche» ----------
+   El mismo cielo nocturno, casi apagado, con estrellas quietas (sin animación: no gasta CPU).
+   Reloj en luz de luna, debajo la fecha, la alarma, el tiempo de mañana y la luna en una
+   lámina de cristal muy tenue. El brillo de la pantalla sigue al 3 %. */
+html.night { background: #03050b; }
+body.night {
+  background-color: #03050b;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255, 255, 255, .7), transparent 70%),
+    radial-gradient(1px 1px at 27% 72%, rgba(255, 255, 255, .4), transparent 70%),
+    radial-gradient(1.5px 1.5px at 41% 9%, rgba(220, 230, 255, .5), transparent 70%),
+    radial-gradient(1px 1px at 58% 84%, rgba(255, 255, 255, .35), transparent 70%),
+    radial-gradient(2.5px 2.5px at 73% 22%, rgba(255, 245, 225, .75), transparent 70%),
+    radial-gradient(1px 1px at 86% 61%, rgba(255, 255, 255, .4), transparent 70%),
+    radial-gradient(1.5px 1.5px at 93% 12%, rgba(220, 230, 255, .45), transparent 70%),
+    radial-gradient(1px 1px at 6% 88%, rgba(255, 255, 255, .35), transparent 70%),
+    radial-gradient(1px 1px at 35% 40%, rgba(255, 255, 255, .25), transparent 70%),
+    radial-gradient(1px 1px at 66% 47%, rgba(255, 255, 255, .25), transparent 70%),
+    radial-gradient(60rem 40rem at 85% 0%, rgba(45, 42, 102, .32) 0%, transparent 70%),
+    radial-gradient(70rem 50rem at 0% 100%, rgba(18, 53, 94, .3) 0%, transparent 70%);
+}
+body.night .app { --text: #c9d2e6; --muted: #6f7b95; --faint: #4f5a72; }
+body.night .time-block { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; justify-content: center; }
 body.night .time-block::before { display: none; }
+body.night .clock { color: #c3cce0; font-weight: 200; text-shadow: 0 0 4rem rgba(150, 175, 230, .18); }
+body.night .date { color: #7d89a3; }
+body.night .alarm, body.night .alarm strong { color: #8e9ab4; }
+body.night .alarm strong { font-weight: 600; }
+.night-extra { display: none; }
+body.night .status-row, body.night .vac:empty { display: none; }
+body.night .night-extra {
+  display: flex; gap: 1.2rem; justify-content: center; margin-top: 3.2rem;
+}
+body.night .night-extra .nx {
+  display: inline-flex; align-items: center; gap: 1rem; padding: .9rem 1.8rem; border-radius: 999px;
+  font-size: 2.1rem; color: #8e9ab4;
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+body.night .night-extra .nx-ic { display: inline-flex; width: 2.6rem; height: 2.6rem; color: #a9b4cc; }
+body.night .night-extra .nx-ic svg { width: 100%; height: 100%; }
+.moon-dark { fill: rgba(255, 255, 255, .07); stroke: rgba(255, 255, 255, .18); stroke-width: .6; }
+.moon-lit { fill: #d9deea; }
 
 @media (prefers-reduced-motion: reduce) { .orb { animation: none; } }
 

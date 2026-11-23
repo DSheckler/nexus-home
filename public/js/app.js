@@ -130,6 +130,37 @@
     const d = new Date();
     $("clock").textContent = fTime.format(d);
     $("date").textContent = cap(fDate.format(d));
+    renderNightExtra(d);
+  }
+
+  // ---------- modo noche: mañana y la luna ----------
+  // Fase de la luna (0 = nueva, 0,5 = llena) a partir de una luna nueva conocida
+  const SYNODIC = 29.530588853, NEW_MOON = Date.UTC(2000, 0, 6, 18, 14);
+  function moonPhase(d) { const age = (((d - NEW_MOON) / 86400000) % SYNODIC + SYNODIC) % SYNODIC; return age / SYNODIC; }
+  function moonName(p) {
+    const n = ["Luna nueva", "Luna creciente", "Cuarto creciente", "Luna gibosa creciente", "Luna llena", "Luna gibosa menguante", "Cuarto menguante", "Luna menguante"];
+    return n[Math.floor((p * 8 + 0.5) % 8)];
+  }
+  // Dibujo de la luna con la parte iluminada (hemisferio norte: crece por la derecha)
+  function moonSvg(p) {
+    const waxing = p < 0.5, crescent = p < 0.25 || p > 0.75;
+    const rx = (10 * Math.abs(Math.cos(2 * Math.PI * p))).toFixed(2);
+    const outer = waxing ? 1 : 0, inner = waxing ? (crescent ? 0 : 1) : (crescent ? 1 : 0);
+    return `<svg viewBox="0 0 24 24" class="moon-svg"><circle cx="12" cy="12" r="10" class="moon-dark"/><path class="moon-lit" d="M12 2 A10 10 0 0 ${outer} 12 22 A${rx} 10 0 0 ${inner} 12 2Z"/></svg>`;
+  }
+  function renderNightExtra(d) {
+    const box = $("nightExtra");
+    if (!box) return;
+    const w = state.weather;
+    const tomorrow = w && w.days && w.days.find((x) => x.date > new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d));
+    const p = moonPhase(d.getTime());
+    const key = JSON.stringify([tomorrow && [tomorrow.code, tomorrow.max, tomorrow.min], moonName(p), Math.round(p * 40)]);
+    if (box.dataset.k === key) return;
+    box.dataset.k = key;
+    box.replaceChildren(...[
+      tomorrow && h("span", { class: "nx" }, h("span", { class: "nx-ic", html: ICON[tomorrow.code] || ICON.cloudy }), h("span", {}, "Mañana " + tomorrow.max + "° / " + tomorrow.min + "° · " + tomorrow.text.toLowerCase())),
+      h("span", { class: "nx" }, h("span", { class: "nx-ic", html: moonSvg(p) }), h("span", {}, moonName(p))),
+    ].filter(Boolean));
   }
 
   function renderAlarm() {
@@ -226,6 +257,7 @@
       const j = await api("/api/weather");
       state.weather = j;
       state.weatherOk = true;
+      renderNightExtra(new Date());
       save("weather", j);
     } catch (e) {
       state.weatherOk = false; // se queda la última copia buena

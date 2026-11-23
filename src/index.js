@@ -22,7 +22,7 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.22.0";
+const VERSION = "1.23.0";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
