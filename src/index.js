@@ -22,14 +22,14 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.16.0";
+const VERSION = "1.19.2";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
   const safe = (p) => p.catch(() => null);
   const [timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, plants, menu, school, abroad, air, aurora] = await Promise.all([
     safe(H.listTimers(env)), safe(H.listShopping(env)), safe(H.listNotes(env)),
-    safe(H.nextPickups(env)), safe(getPower()), safe(getWarnings()), safe(H.getSettings(env)), safe(H.upcomingDates(env, 7)),
+    safe(H.nextPickups(env)), safe(getPower()), safe(getWarnings(env)), safe(H.getSettings(env)), safe(H.upcomingDates(env, 7)),
     safe(P.listReminders(env)), safe(P.listChores(env)), safe(L.listPlants(env)), safe(L.getMenu(env, 2)), safe(L.schoolSummary(env)),
     safe(L.getAbroad(env)), safe(getAir(env)), safe(getAurora(env)),
   ]);
@@ -149,7 +149,7 @@ async function scopeOf(request, env) {
   if (await P.isGuest(env, key)) return "guest";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?)$/i;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor|warnings)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?)$/i;
 // Invitados: solo la lista de la compra y las notas de texto
 const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
@@ -352,6 +352,7 @@ async function handleApi(request, env, url, ctx) {
       return json({ ok: true, vacation });
     }
   }
+  if (path === "/api/warnings" && method === "GET") return json({ ok: true, warnings: await getWarnings(env) });
   if (path === "/api/outdoor" && method === "GET") {
     const [air, aurora] = await Promise.all([getAir(env).catch(() => null), getAurora(env).catch(() => null)]);
     return json({ ok: true, air, aurora, season: L.seasonNotices(14) });

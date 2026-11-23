@@ -148,11 +148,12 @@
     const chips = [];
     if (media) chips.push(mediaCard());
     chips.push(...reminderPills(now));
-    for (const w of data.warnings || []) {
-      const until = w.end ? " · hasta " + new Date(w.end).toLocaleString("es-ES", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" }) : "";
-      chips.push(chip("warn " + w.level, "warn", "SMHI: " + w.event + until, () => N.toast(w.text || w.event)));
-    }
     const top = [];
+    // Avisos de SMHI: arriba del todo, con el color del nivel; al tocar, el detalle en español
+    for (const w of data.warnings || []) {
+      // Corto para que quepa siempre: el color dice el nivel y el detalle, desde cuándo y hasta cuándo
+      top.push(chip("warn " + w.level, "warn", "Aviso: " + w.event, () => openWarn(w)));
+    }
     let aiPill = null;
     const ai = data.ai;
     if (ai && ai.used >= ai.free * 0.7) {
@@ -577,6 +578,29 @@
     return { action: out, info };
   }
 
+  const LEVEL_ES = { yellow: "amarillo", orange: "naranja", red: "rojo" };
+  const LEVEL_MEANS = {
+    yellow: "Amarillo: puede causar molestias o retrasos. Hay que tener cuidado.",
+    orange: "Naranja: peligroso; puede afectar mucho a la vida diaria. Mejor evitar salir si no hace falta.",
+    red: "Rojo: muy peligroso. Seguid las indicaciones de las autoridades.",
+  };
+  function warnTime(iso) {
+    const d = new Date(iso), k = (x) => x.toLocaleDateString("en-CA", { timeZone: "Europe/Stockholm" });
+    const hm = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+    const diff = Math.round((Date.parse(k(d)) - Date.parse(k(new Date()))) / 86400000);
+    return (diff === 0 ? "hoy " : diff === 1 ? "mañana " : d.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Stockholm" }) + " ") + hm;
+  }
+  function openWarn(w) {
+    const when = (Date.parse(w.start) <= Date.now() ? "Ya ha empezado" : "Empieza " + warnTime(w.start)) + (w.end ? " · termina " + warnTime(w.end) : "");
+    openSheet("Aviso " + LEVEL_ES[w.level] + ": " + w.event,
+      N.h("p", { class: "sheet-sub warn-when" }, when + "." + (w.area ? " Zona: " + w.area + "." : "")),
+      w.happens ? N.h("p", { class: "warn-happens" }, w.happens) : null,
+      w.affect && w.affect.length ? N.h("h3", { class: "warn-h" }, "Qué tener en cuenta") : null,
+      w.affect && w.affect.length ? N.h("ul", { class: "tip-list" }, ...w.affect.map((t) => N.h("li", { class: "tip-row" }, t))) : null,
+      N.h("p", { class: "warn-level " + w.level }, LEVEL_MEANS[w.level] + " Fuente: SMHI."));
+    if (sheet) sheet.dataset.kind = "warn";
+  }
+
   function openTip(n) {
     const lines = (n.info && n.info.length ? n.info : [n.text]).map((t) => N.h("li", { class: "tip-row" }, t));
     openSheet(n.label || n.text.split(": ")[0], N.h("p", { class: "sheet-sub" }, n.text + "."), N.h("ul", { class: "tip-list" }, ...lines));
@@ -587,7 +611,9 @@
     const list = (data.menuWeek || data.menu || []);
     const rows = list.map((d, i) => {
       const meal = N.h("input", { class: "ed-input", type: "text", maxlength: "80", value: d.meal || "", placeholder: "¿Qué cenamos?", "aria-label": "Cena" });
-      const ing = N.h("input", { class: "ed-input ing", type: "text", maxlength: "300", value: (d.ingredients || []).join(", "), placeholder: "Ingredientes (con comas)", "aria-label": "Ingredientes" });
+      // Varias líneas: en la vista de semana cada día es una columna estrecha
+      const ing = N.h("textarea", { class: "ed-input ing", maxlength: "300", rows: "4", placeholder: "Ingredientes (con comas)", "aria-label": "Ingredientes" });
+      ing.value = (d.ingredients || []).join(", ");
       const save = async () => {
         try { const j = await N.api("/api/menu/" + d.date, { method: "PUT", body: { meal: meal.value, ingredients: ing.value } }); data.menuWeek = j.menu; data.menu = j.menu.slice(0, 2); render(); }
         catch (e) { N.toast(e.message); }
@@ -1100,6 +1126,6 @@
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   }
 
-  window.NexusHome = { init, refresh, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, fitLayout, settings: () => (data && data.settings) || {},
+  window.NexusHome = { init, refresh, openWarn, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, fitLayout, settings: () => (data && data.settings) || {},
     timers: () => ((data && data.timers) || []).map((t) => ({ ...t, endsAt: t.endsAt + (data.skew || 0) })) };
 })();

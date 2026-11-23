@@ -10,8 +10,16 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
 
 ## Qué hace
 
-- **Reloj, fecha y próxima alarma**, con una línea de tiempo del día (amanecer, atardecer y eventos).
-- **Tiempo** (Open-Meteo) con detalle por horas y avisos oficiales de **SMHI**.
+- **Diseño «Cristal»**: tarjetas de vidrio sobre un **cielo animado que sigue la hora y el tiempo real**
+  (mañana, mediodía, atardecer, noche con estrellas fugaces, lluvia y nieve que caen). La lluvia o la nieve
+  se confirman con las estaciones de SMHI más cercanas a tu casa, que se buscan solas. Va a 60 fps en una
+  Galaxy Tab A de 2019.
+- **Reloj, fecha y próxima alarma**.
+- **Tiempo** (Open-Meteo) con detalle por horas y una **barra del sol**: amanecer, atardecer, horas de luz,
+  cuántos minutos se ganan o se pierden mañana y la temperatura del día.
+- **Avisos oficiales de SMHI en español**: los avisos amarillos, naranjas o rojos de tu zona aparecen arriba
+  con su color; al tocarlos se ve qué va a pasar, cuándo y qué tener en cuenta (traducido una vez por aviso con
+  Workers AI). También salen en el móvil y en el resumen hablado.
 - **Agenda familiar** de Google Calendar, interactiva: ver 14 días, filtrar por persona, añadir y quitar
   eventos. También para quien no tiene cuenta de Google (un niño).
 - **Asistente de voz "Oye NEXUS"**: entiende y responde en español, crea alarmas, temporizadores y eventos,
@@ -44,9 +52,9 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
 
 | | |
 |---|---|
-| ![Agenda](docs/capturas/04-agenda-familiar.png) | ![Tiempo](docs/capturas/02-tiempo-interactivo.png) |
-| ![Alarmas](docs/capturas/06-alarmas.png) | ![Temporizador](docs/capturas/08-temporizador.png) |
-| ![Conversación](docs/capturas/12-conversacion-voz.png) | ![Modo noche](docs/capturas/15-modo-noche.png) |
+| ![De noche, con aviso de SMHI](docs/capturas/15-modo-noche.png) | ![Aviso de SMHI](docs/capturas/20-aviso-smhi.png) |
+| ![Menú de la semana](docs/capturas/19-menu-semana.png) | ![Barra del sol](docs/capturas/02-tiempo-interactivo.png) |
+| ![Móvil de día](docs/capturas/16-iphone-compra-y-notas.png) | ![Móvil en modo oscuro](docs/capturas/21-iphone-oscuro.png) |
 
 Más capturas en [`docs/capturas`](docs/capturas).
 
@@ -148,6 +156,11 @@ servidor como secretos `SHELLY_AUTH_KEY` y `SHELLY_SERVER`. Después registra lo
   recarga sola.
 - **Probar en el PC:** copia `.dev.vars.example` como `.dev.vars`, ejecuta `npm run dev` y abre
   `http://localhost:8787/#token=<tu NEXUS_TOKEN de .dev.vars>`.
+- **Ver el cielo a otra hora o con otro tiempo:** añade `?cielo=21:30` y/o `?clima=sun|partly|cloudy|rain|snow`
+  a la dirección del panel (solo cambia el fondo, para probar).
+- **Probar los avisos de SMHI sin esperar a una tormenta:** pon `WARN_TEST_POINT=lat,lon` en `.dev.vars`
+  con un punto dentro de un aviso activo (mira el mapa en smhi.se). En local no hay Workers AI, así que el
+  texto sale en inglés; en Cloudflare se traduce.
 - **Cambiar la voz:** cambia `TTS_VOICE` en `wrangler.jsonc`. Opciones: sirio, nestor, carina, celeste,
   alvaro, diana, aquila, selena, estrella, javier.
 - **Salir al sistema en la tablet:** mantén pulsada la fecha 3 segundos.

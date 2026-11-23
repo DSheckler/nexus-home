@@ -171,9 +171,18 @@
     let top = mix(a[1].top, b[1].top, t), bot = mix(a[1].bot, b[1].bot, t);
     const glow = mix(a[1].glow, b[1].glow, t);
     // Nubes, niebla o lluvia apagan el color del cielo
-    const code = w && w.now.code;
+    const code = params.get("clima") || (w && w.now.code); // ?clima=sun|partly|cloudy|rain|snow para previsualizar
     const grey = { cloudy: 0.45, fog: 0.55, rain: 0.5, storm: 0.6, snow: 0.35, partly: 0.2, partlyNight: 0.2 }[code] || 0;
     if (grey) { top = mix(top, GREY.top, grey); bot = mix(bot, GREY.bot, grey * 0.6); glow[3] *= 1 - grey; }
+    // Momento del cielo para el cristal y su animación (js/sky.js)
+    let sky = m < sr - 30 || m > ss + 60 ? "night" : m < sr + 150 ? "morning" : m > ss - 70 ? "dusk" : "day";
+    if (code === "rain" || code === "storm") sky = sky === "night" ? "night" : "rain";
+    else if (code === "snow") sky = sky === "night" ? "night" : "snow";
+    const fx = code === "rain" || code === "storm" ? "rain" : code === "snow" ? "snow" : sky === "night" ? "stars" : sky;
+    const cloudy = { cloudy: 1, fog: 1, partly: .5, partlyNight: .5 }[code] || 0;
+    if (document.body.dataset.sky !== sky) document.body.dataset.sky = sky;
+    if (window.NexusSky) window.NexusSky.set(fx, { cloudy });
+    else window.NEXUS_SKY = { fx, cloudy };
     const s = document.documentElement.style;
     s.setProperty("--sky-top", rgb(top));
     s.setProperty("--sky-bot", rgb(bot));
@@ -307,42 +316,84 @@
     try { setAlarms((await api("/api/alarms")).alarms); } catch { /* copia local */ }
   }
 
-  // ---------- línea del día ----------
+  // ---------- barra del sol (en la tarjeta del clima) ----------
+  // De 00 a 24: el tramo con luz, la hora actual, las actividades de hoy como puntos y la
+  // temperatura prevista cada 6 horas. Tocar el tramo de luz o un punto muestra el detalle.
+  const dayPct = (min) => Math.max(0, Math.min(100, (min / 1440) * 100));
+  const fmtDur = (m) => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
+  let sunTipFor = null;
+  function sunTip(key, title, body) {
+    const tip = $("sunTip");
+    if (!tip) return;
+    if (sunTipFor === key && !tip.hidden) { tip.hidden = true; sunTipFor = null; return; }
+    sunTipFor = key;
+    tip.replaceChildren(h("b", {}, title), h("span", {}, body));
+    tip.hidden = false;
+    clearTimeout(sunTip.t);
+    sunTip.t = setTimeout(() => { tip.hidden = true; sunTipFor = null; }, 8000);
+  }
+  function lightText(w) {
+    const sr = toMin(w.today.sunrise), ss = toMin(w.today.sunset), len = ss - sr;
+    const noon = Math.round((sr + ss) / 2);
+    const noonTxt = `${String(Math.floor(noon / 60)).padStart(2, "0")}:${String(noon % 60).padStart(2, "0")}`;
+    let txt = `Amanece a las ${w.today.sunrise} y anochece a las ${w.today.sunset}: ${fmtDur(len)} min de luz. El sol está más alto a las ${noonTxt}.`;
+    // Días hasta el próximo solsticio
+    const n = now(), [y, mo, d] = n.dateKey.split("-").map(Number);
+    const today = Date.UTC(y, mo - 1, d);
+    const win = Date.UTC(y, 11, 21), sum = Date.UTC(y, 5, 21);
+    let target, kind;
+    if (today < sum) { target = sum; kind = "verano"; } else if (today < win) { target = win; kind = "invierno"; } else { target = Date.UTC(y + 1, 5, 21); kind = "verano"; }
+    const days = Math.round((target - today) / 864e5);
+    if (days === 0) txt += ` Hoy es el solsticio de ${kind}.`;
+    else txt += ` Faltan ${days} días para el solsticio de ${kind}: desde entonces los días se ${kind === "invierno" ? "alargan" : "acortan"}.`;
+    return txt;
+  }
   function renderTimeline() {
-    const n = nowMin();
-    const children = [];
+    const n = nowMin(), w = state.weather;
+    const box = $("timeline");
+    const parts = [];
     let light = null;
-
-    if (state.weather) {
-      const { sunrise, sunset } = state.weather.today;
-      const sr = pct(toMin(sunrise)), ss = pct(toMin(sunset));
-      children.push(
-        h("span", { class: "tl-sun", style: `left:${sr}%` }, h("span", { html: ICON.sunrise }), sunrise),
-        h("span", { class: "tl-sun", style: `left:${ss}%` }, h("span", { html: ICON.sunset }), sunset)
-      );
-      light = h("span", { class: "tl-light", style: `left:${sr}%;width:${ss - sr}%` });
+    if (w) {
+      const { sunrise, sunset } = w.today;
+      const sr = toMin(sunrise), ss = toMin(sunset), len = ss - sr;
+      const facts = [
+        h("div", {}, h("b", {}, h("span", { html: ICON.sunrise }), sunrise), h("span", {}, "amanecer")),
+        h("div", {}, h("b", {}, h("span", { html: ICON.sunset }), sunset), h("span", {}, "atardecer")),
+      ];
+      let sub = "de luz";
+      if (w.today.nextSunrise && w.today.nextSunset) {
+        const diff = toMin(w.today.nextSunset) - toMin(w.today.nextSunrise) - len;
+        sub += diff === 0 ? " · igual mañana" : ` · ${diff > 0 ? "+" : "−"}${Math.abs(diff)} min mañana`;
+      }
+      facts.push(h("div", { style: "text-align:right" }, h("b", {}, fmtDur(len)), h("span", {}, sub)));
+      parts.push(h("div", { class: "sun-facts" }, ...facts));
+      light = h("span", { class: "sun-light", style: `left:${dayPct(sr)}%;width:${dayPct(ss) - dayPct(sr)}%` });
     }
-
-    const events = ((state.agenda && state.agenda.today) || []).filter((e) => !e.allDay).map((e) => {
-      const l = pct(toMin(e.start)), r = pct(toMin(e.end));
-      return h("span", {
-        class: "tl-event" + (toMin(e.end) <= n ? " past" : ""),
-        style: `left:${l}%;width:${r - l}%;--c:${color(e.who)}`,
-        title: e.title,
-      });
-    });
-
-    const hours = [];
-    for (let m = DAY_START; m <= DAY_END; m += 180) {
-      hours.push(h("span", { style: `left:${pct(m)}%` }, String(m / 60).padStart(2, "0")));
-    }
-
-    $("timeline").replaceChildren(
-      ...children,
-      h("div", { class: "tl-track" }, light, ...events),
-      h("span", { class: "tl-now", style: `left:${pct(n)}%` }),
-      h("div", { class: "tl-hours" }, ...hours)
+    const events = ((state.agenda && state.agenda.today) || []).filter((e) => !e.allDay).map((e) =>
+      h("button", {
+        type: "button",
+        class: "sun-ev" + (toMin(e.end) <= n ? " past" : ""),
+        style: `left:${dayPct(toMin(e.start))}%;--c:${color(e.who)}`,
+        "aria-label": `${e.title}, ${e.start}`,
+        onclick: (ev) => { ev.stopPropagation(); sunTip("ev" + e.start + e.title, e.title, `Hoy de ${e.start} a ${e.end}${name(e.who) ? " · " + name(e.who) : ""}`); },
+      })
     );
+    const ticks = [], temps = [];
+    for (let hh = 0; hh <= 24; hh += 6) {
+      ticks.push(h("span", { style: `left:${(hh / 24) * 100}%` }, String(hh).padStart(2, "0")));
+      const t = w && w.today.temps && w.today.temps[Math.min(hh, 23)];
+      if (t != null) temps.push(h("span", { style: `left:${(hh / 24) * 100}%` }, String(t).replace("-", "−") + "°"));
+    }
+    parts.push(h("div", { class: "sun-track", onclick: () => { if (w) sunTip("light", "Luz del sol hoy", lightText(w)); } },
+      h("div", { class: "sun-rail" }, h("span", { class: "sun-past", style: `width:${dayPct(n)}%` }), light),
+      h("span", { class: "sun-now", style: `left:${dayPct(n)}%`, "data-t": fTime.format(new Date()) }),
+      ...events,
+      h("div", { class: "sun-ticks" }, ...ticks),
+      temps.length ? h("div", { class: "sun-temps" }, ...temps) : null,
+      h("div", { class: "sun-tip", id: "sunTip", hidden: true })
+    ));
+    sunTipFor = null;
+    box.replaceChildren(...parts);
   }
 
   // ---------- estado del sistema ----------

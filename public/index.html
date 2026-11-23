@@ -10,12 +10,16 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/cristal.css">
 </head>
-<body>
+<body data-sky="day">
+  <!-- Cielo animado (js/sky.js): detrás del cristal y una capa suave por delante -->
+  <canvas class="fx" id="fx" aria-hidden="true"></canvas>
+  <canvas class="fx2" id="fx2" aria-hidden="true"></canvas>
   <main class="app" id="app">
 
     <!-- Hora, fecha y próxima alarma -->
-    <section class="time-block">
+    <section class="time-block g">
       <!-- Estado de la tablet: Wi-Fi, batería y avisos de conexión -->
       <div class="topline">
         <span class="dev" id="dev" aria-label="Estado de la tablet"></span>
@@ -33,20 +37,20 @@
         <div class="pills" id="pills" aria-live="polite"></div>
       </div>
       <div class="vac" id="vac"></div>
-      <div class="info" id="info" aria-live="polite"></div>
     </section>
 
-    <!-- Clima y agenda -->
-    <aside class="side">
+    <!-- Clima, barra del sol (luz, temperatura y actividades de hoy) y agenda en un solo cristal -->
+    <aside class="side g">
       <section class="panel weather" id="weather"></section>
+      <section class="timeline" id="timeline" aria-label="Luz del sol y actividades de hoy"></section>
       <section class="panel agenda" id="agenda"></section>
     </aside>
 
-    <!-- Línea del día: luz solar + actividades -->
-    <section class="timeline" id="timeline" aria-label="Línea del día"></section>
+    <!-- Tarjetas: notas, compra, luz, plantas -->
+    <section class="info" id="info" aria-live="polite"></section>
 
     <!-- Conversación: ocupa el lugar de la línea del día mientras se habla -->
-    <section class="caption" id="caption" aria-live="polite">
+    <section class="caption g" id="caption" aria-live="polite">
       <p class="cap-user" id="capUser"></p>
       <p class="cap-reply" id="capReply"></p>
       <form class="cap-form" id="capForm" hidden>
@@ -56,7 +60,7 @@
     </section>
 
     <!-- Asistente y accesos rápidos -->
-    <footer class="bar">
+    <footer class="bar g">
       <button class="assistant" id="assistant" type="button" aria-label="Hablar con NEXUS">
         <span class="orb" aria-hidden="true"></span>
         <span id="assistantText" class="sr-only">Toca para hablar con NEXUS</span>
@@ -82,5 +86,6 @@
   <script src="js/agenda.js"></script>
   <script src="js/cook.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/sky.js"></script>
 </body>
 </html>

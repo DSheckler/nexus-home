@@ -1,0 +1,291 @@
+/* NEXUS Home - estilo «Cristal»
+   Detrás del vidrio está el cielo de tu ciudad (cambia con el sol y el tiempo, animado en
+   js/sky.js) y encima, tarjetas de cristal esmerilado. De día el cristal es claro con letra
+   oscura; de noche, oscuro con letra clara. Las hojas emergentes siguen con su estilo. */
+
+/* ---------- Cielo: colores por momento del día ---------- */
+body {
+  --s1: #ffe0c2; --s2: #cfe0f7; --s3: #f3dcff; --s4: #e9eef6;
+  background-color: var(--s4);
+  background-image:
+    radial-gradient(56rem 46rem at 85% 4%, var(--s1) 0%, transparent 72%),
+    radial-gradient(64rem 52rem at 4% 100%, var(--s2) 0%, transparent 72%),
+    radial-gradient(52rem 42rem at 50% 55%, var(--s3) 0%, transparent 70%);
+  transition: background-color 1.5s var(--ease);
+}
+body[data-sky="day"] { --s1: #fff1c9; --s2: #a9d2ff; --s3: #d7ecff; --s4: #e4f0fb; }
+body[data-sky="dusk"] { --s1: #ffb79b; --s2: #9db0f2; --s3: #e5b3e8; --s4: #e8d9ec; }
+body[data-sky="night"] { --s1: #2d2a66; --s2: #12355e; --s3: #241d4d; --s4: #0b1428; }
+body[data-sky="rain"] { --s1: #c9d3df; --s2: #9fb2c8; --s3: #d4dbe6; --s4: #c3ccd8; }
+body[data-sky="snow"] { --s1: #eef2f8; --s2: #a9bcd2; --s3: #cfd9e6; --s4: #c9d3e0; } /* algo más gris: los copos blancos resaltan */
+html { background: var(--bg); }
+
+/* Lienzos del cielo animado: uno detrás del cristal y otro delante (lluvia, nieve, estrellas fugaces) */
+.fx, .fx2 { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
+.fx { z-index: 0; }
+.fx2 { z-index: 5; }
+body.night .fx, body.night .fx2 { display: none; }
+.app { position: relative; z-index: 1; }
+
+/* ---------- Colores del cristal (solo la pantalla principal; las hojas no cambian) ---------- */
+.app {
+  --text: #172234; --muted: #4f5d72; --faint: #74819a;
+  --line: rgba(23, 34, 52, .12); --panel: rgba(255, 255, 255, .5);
+  --glass: rgba(255, 255, 255, .66); --edge: rgba(255, 255, 255, .9); --hi: rgba(255, 255, 255, .95);
+  --sun: #e8912f; --acc: #3f6df0; --track: rgba(110, 125, 150, .2);
+  color: var(--text);
+}
+body[data-sky="night"] .app {
+  --text: #eaf0fa; --muted: #a3afc6; --faint: #7d89a2;
+  --line: rgba(255, 255, 255, .12); --panel: rgba(255, 255, 255, .08);
+  --glass: rgba(20, 30, 58, .62); --edge: rgba(255, 255, 255, .16); --hi: rgba(255, 255, 255, .2);
+  --sun: #ffb45e; --acc: #8fb0ff; --track: rgba(255, 255, 255, .12);
+}
+
+/* ---------- Estructura ----------
+   Columna izquierda: el reloj (cristal grande) y debajo las tarjetas.
+   Derecha: clima con la barra del sol y la agenda en un solo cristal. Abajo, el dock. */
+.app {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 17.6rem auto;
+  gap: 2rem 2.4rem;
+  padding: 3rem 4rem 2.6rem;
+}
+.time-block { grid-column: 1; grid-row: 1; }
+.side { grid-column: 2; grid-row: 1 / 3; }
+.info, .caption { grid-column: 1; grid-row: 2; }
+.bar { grid-column: 1 / -1; grid-row: 3; }
+
+.g {
+  position: relative;
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  border-radius: 3rem;
+  /* Sin desenfoque de fondo (backdrop-filter): en la tablet bajaba el cielo animado a 19 fps.
+     Las nubes ya son suaves, así que un cristal algo más opaco se ve igual y va a 60 fps. */
+  box-shadow: inset 0 1px 0 var(--hi), 0 1.8rem 5rem rgba(40, 60, 100, .12);
+}
+.g::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(125deg, rgba(255, 255, 255, .35) 0%, transparent 32%, transparent 70%, rgba(255, 255, 255, .12) 100%);
+}
+body[data-sky="night"] .g::before { background: linear-gradient(125deg, rgba(255, 255, 255, .08) 0%, transparent 35%); }
+.g > * { position: relative; }
+
+/* ---------- Reloj ---------- */
+.time-block { padding: 2.2rem 3rem 2.4rem; justify-content: flex-start; overflow: hidden; }
+.topline { margin: 0 0 1.4rem; }
+.clock { font-size: var(--clock-size, 23rem); margin-left: -.6rem; }
+.date-row { margin-top: 2.2rem; }
+.date { font-size: 3.4rem; font-weight: 300; }
+.alarm { color: var(--muted); }
+.status-row { margin-top: auto; padding-top: 1.6rem; }
+.pill { background: rgba(255, 255, 255, .55); border-color: var(--edge); color: var(--text); }
+body[data-sky="night"] .pill { background: rgba(255, 255, 255, .07); }
+.pill strong { color: var(--sun); }
+.pill-more { color: var(--muted); }
+
+/* ---------- Tarjetas (notas, compra, luz, plantas) ---------- */
+.info { margin: 0; overflow: visible; min-height: 0; }
+.info > .tiles { width: 100%; gap: 1.4rem; }
+.info .card {
+  background: var(--glass); border: 1px solid var(--edge); border-radius: 2.4rem;
+  box-shadow: inset 0 1px 0 var(--hi), 0 1.4rem 4rem rgba(40, 60, 100, .1);
+  padding: 1.6rem 2rem; min-height: 0; overflow: hidden;
+}
+.card-t, .card-s { color: var(--muted); }
+.card-v { font-weight: 300; }
+.tiles .card-v { font-size: 3.4rem; }
+.card .badge { background: rgba(63, 109, 240, .14); color: var(--acc); }
+.card .badge.zero { background: var(--line); color: var(--muted); }
+.row b { color: var(--text); }
+.row.voice.new .vtxt { color: var(--acc); }
+.pbars i { background: var(--track); }
+.pbars i.low { background: #34b37a; }
+.pbars i.now { background: var(--sun); }
+/* Los iconos de color se quedan con su círculo de color; el trazo va en tinta para leerse sobre claro */
+.app .ic { color: var(--text); }
+body[data-sky="night"] .app .ic { color: var(--ic-fg, var(--text)); }
+.card.plants .card-v { color: #23935e; }
+body[data-sky="night"] .card.plants .card-v { color: #b4e6c0; }
+
+/* ---------- Clima, barra del sol y agenda en un cristal ---------- */
+.side { display: flex; flex-direction: column; gap: 0; padding: 2.4rem 2.6rem; overflow: hidden; }
+.side .panel { background: none; border: 0; border-radius: 0; padding: 0; }
+.wx-icon { color: var(--sun); width: 6.4rem; height: 6.4rem; }
+.wx-temp { font-weight: 200; font-size: 8rem; }
+.wx-place { font-size: 2rem; }
+.wx-desc, .wx-range { font-size: 1.6rem; color: var(--muted); }
+.side .wx-days { display: none; } /* la previsión de varios días está al tocar el clima */
+
+.timeline { height: auto; margin-top: 1.8rem; cursor: pointer; }
+.sun-facts { display: flex; justify-content: space-between; align-items: flex-end; }
+.sun-facts div { display: flex; flex-direction: column; line-height: 1.15; }
+.sun-facts b { display: inline-flex; align-items: center; gap: .6rem; font-size: 2rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.sun-facts b svg { width: 1.9rem; height: 1.9rem; color: var(--sun); }
+.sun-facts span { font-size: 1.3rem; color: var(--muted); }
+.sun-track { position: relative; height: 7.8rem; margin-top: 1.4rem; }
+.sun-rail { position: absolute; left: 0; right: 0; top: 1.8rem; height: 1.2rem; border-radius: .6rem; background: var(--track); overflow: hidden; }
+.sun-light { position: absolute; top: 0; bottom: 0; border-radius: .6rem; background: linear-gradient(90deg, transparent, var(--sun) 14%, #ffe2a8 50%, var(--sun) 86%, transparent); opacity: .85; }
+.sun-past { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255, 255, 255, .35); }
+body[data-sky="night"] .sun-past { background: rgba(255, 255, 255, .08); }
+.sun-now { position: absolute; top: .8rem; width: .2rem; height: 3.2rem; margin-left: -.1rem; background: var(--text); border-radius: .2rem; transition: left 1s var(--ease); }
+.sun-now::after { content: attr(data-t); position: absolute; top: -2rem; left: 50%; transform: translateX(-50%); font-size: 1.2rem; font-weight: 500; white-space: nowrap; }
+.sun-ev { position: absolute; top: 1.5rem; width: 1.8rem; height: 1.8rem; margin-left: -.9rem; padding: 0; border-radius: 50%; background: var(--c, var(--acc)); border: .3rem solid var(--glass-solid, #f4f6fa); box-shadow: 0 .2rem .6rem rgba(40, 60, 100, .25); }
+body[data-sky="night"] .sun-ev { --glass-solid: #1c2542; }
+.sun-ev.past { opacity: .4; }
+.sun-ticks, .sun-temps { position: absolute; left: 0; right: 0; height: 1.8rem; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.sun-ticks { top: 3.6rem; color: var(--muted); }
+.sun-temps { top: 5.4rem; font-weight: 600; }
+.sun-ticks span, .sun-temps span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.sun-ticks span:first-child, .sun-temps span:first-child { transform: none; }
+.sun-ticks span:last-child, .sun-temps span:last-child { transform: translateX(-100%); }
+.sun-tip { position: absolute; z-index: 3; left: 0; right: 0; top: calc(100% + .4rem); padding: 1.2rem 1.6rem; border-radius: 1.6rem; background: var(--text); color: var(--s4, #fff); font-size: 1.5rem; line-height: 1.45; box-shadow: 0 1.2rem 3rem rgba(20, 30, 50, .3); }
+.sun-tip b { display: block; font-size: 1.7rem; margin-bottom: .2rem; }
+.sun-tip[hidden] { display: none; }
+
+.agenda { margin-top: 1.6rem; padding-top: 1.6rem !important; border-top: 1px solid var(--line) !important; flex: 1; min-height: 0; }
+.agenda h2 { font-size: 1.6rem; font-weight: 600; color: var(--muted); }
+.item .who { color: var(--muted); }
+
+/* ---------- Conversación: ocupa el sitio de las tarjetas mientras se habla ---------- */
+.caption { height: auto; padding: 1.6rem 2.6rem; }
+body.talking .timeline { display: block; }
+body.talking .info { display: none; }
+body.talking .caption { display: flex; }
+.cap-input { background: rgba(255, 255, 255, .7); color: var(--text); }
+body[data-sky="night"] .cap-input { background: rgba(0, 0, 0, .25); }
+
+/* ---------- Dock ---------- */
+.bar { padding: 1.2rem 1.4rem; border-radius: 99rem; }
+.bar .assistant { background: none; }
+.orb { width: 5.2rem; height: 5.2rem; background: conic-gradient(from 0deg, #ff9a7a, #c79bff, #6fb8ff, #7ff0c9, #ffd36e, #ff9a7a); box-shadow: 0 0 2.4rem rgba(160, 140, 255, .55), inset 0 0 1rem rgba(255, 255, 255, .7); animation: orb-spin 9s linear infinite; }
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+.icon-btn { background: rgba(255, 255, 255, .45); border-color: var(--edge); color: var(--muted); }
+body[data-sky="night"] .icon-btn { background: rgba(255, 255, 255, .06); }
+#micBtn.on { color: var(--acc); border-color: rgba(63, 109, 240, .45); }
+.actions .action { background: rgba(255, 255, 255, .55); border-color: var(--edge); font-size: 1.9rem; font-weight: 500; }
+body[data-sky="night"] .actions .action { background: rgba(255, 255, 255, .07); }
+.action svg { color: var(--text); }
+.action:active { background: var(--text); color: var(--s4); }
+
+/* Modo noche: solo la hora, sin cristales */
+body.night { background: #000; background-image: none; }
+body.night .time-block { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.night .time-block::before { display: none; }
+
+@media (prefers-reduced-motion: reduce) { .orb { animation: none; } }
+
+/* =====================================================================
+   Ventanas (Casa, Alarmas, Tareas, Música, Menú, clima, agenda…)
+   Una hoja de cristal sobre el mismo cielo, clara de día y oscura de noche.
+   ===================================================================== */
+.sheet-wrap {
+  --text: #172234; --muted: #4f5d72; --faint: #74819a;
+  --line: rgba(23, 34, 52, .12); --panel: rgba(23, 34, 52, .06); --panel-solid: #f4f6fa; /* opaca: con transparencia se veía la hora detrás */
+  --bg: rgba(255, 255, 255, .85); --glass-edge: rgba(255, 255, 255, .95);
+  --sun: #e8912f; --acc: #3f6df0; --ink: #172234; --on-ink: #ffffff; --ok: #23935e; --bad: #c8493c;
+  background: rgba(30, 42, 66, .32);
+  color: var(--text);
+}
+body[data-sky="night"] .sheet-wrap {
+  --text: #eaf0fa; --muted: #a3afc6; --faint: #7d89a2;
+  --line: rgba(255, 255, 255, .12); --panel: rgba(255, 255, 255, .07); --panel-solid: #182039;
+  --bg: rgba(0, 0, 0, .28); --glass-edge: rgba(255, 255, 255, .16);
+  --sun: #ffb45e; --acc: #8fb0ff; --ink: #eaf0fa; --on-ink: #101830; --ok: #8fe0b0; --bad: #f0a49a;
+  background: rgba(0, 0, 0, .45);
+}
+.sheet {
+  background: var(--panel-solid);
+  border: 1px solid var(--glass-edge);
+  border-radius: 3.2rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 3rem 8rem rgba(20, 30, 55, .3);
+  animation: sheet-in .28s var(--ease) both;
+}
+body[data-sky="night"] .sheet { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 3rem 8rem rgba(0, 0, 0, .5); }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(1.6rem) scale(.985); } }
+.sheet-head h2 { font-weight: 300; font-size: 3.4rem; }
+.sheet-wrap .btn { border-color: var(--line); background: rgba(255, 255, 255, .55); color: var(--text); }
+body[data-sky="night"] .sheet-wrap .btn { background: rgba(255, 255, 255, .06); }
+.sheet-wrap .btn.primary,
+body[data-sky="night"] .sheet-wrap .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--on-ink); } /* de noche la regla de .btn le quitaba el fondo y dejaba letra oscura sobre oscuro */
+.sheet-wrap .btn.ghost { background: transparent; }
+.sheet-wrap .btn.danger { color: var(--bad); }
+.sheet-wrap .btn.back { background: rgba(255, 255, 255, .7); border-color: var(--glass-edge); }
+body[data-sky="night"] .sheet-wrap .btn.back { background: rgba(255, 255, 255, .08); }
+.sheet-wrap .switch[aria-checked="true"] { background: #34c38f; }
+.sheet-wrap .switch::after { background: #fff; box-shadow: 0 1px .3rem rgba(0, 0, 0, .25); }
+.sheet-wrap .switch[aria-checked="true"]::after { background: #fff; }
+.sheet-wrap .chip[aria-pressed="true"], .sheet-wrap .al-tab[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); box-shadow: none; }
+.sheet-wrap .al-tabs { background: var(--panel); }
+.sheet-wrap .ed-input, .sheet-wrap .ed-picker { background: var(--bg); color: var(--text); }
+.sheet-wrap .ed-input { border-color: var(--line); }
+.sheet-wrap .ed-input:focus, .sheet-wrap .cap-input:focus { outline-color: var(--acc); }
+.sheet-wrap .check { border-color: var(--faint); }
+.sheet-wrap .shop-row.done .check { background: #34c38f; border-color: #34c38f; }
+.sheet-wrap .wx-chip, .sheet-wrap .pw-big, .sheet-wrap .pw-cmp { background: var(--panel); border-color: var(--line); }
+.sheet-wrap .wx-chip[aria-pressed="true"], .sheet-wrap .ag-chip[aria-pressed="true"] { background: rgba(232, 145, 47, .14); border-color: rgba(232, 145, 47, .6); }
+.sheet-wrap .ag-filter[aria-pressed="true"] { background: var(--panel); }
+.sheet-wrap .wx-rain { background: var(--panel); }
+.sheet-wrap .wx-col-p.wet { color: var(--acc); }
+.sheet-wrap .pw-cmp.good { color: var(--ok); }
+.sheet-wrap .pw-cmp.bad { color: var(--bad); }
+.sheet-wrap .note-del { color: var(--bad); }
+.sheet-wrap .row.voice.new .vtxt { color: var(--acc); }
+.sheet-wrap .vplay { background: var(--acc); color: #fff; }
+.sheet-wrap .who-pick { background: var(--panel); }
+.sheet-wrap .tm-preset:active { background: rgba(232, 145, 47, .14); }
+.sheet-wrap .plan .room { fill: rgba(23, 34, 52, .035); stroke: rgba(23, 34, 52, .18); }
+body[data-sky="night"] .sheet-wrap .plan .room { fill: rgba(255, 255, 255, .05); stroke: rgba(255, 255, 255, .16); }
+.sheet-wrap .plan .lamp.on .dot { fill: #ffc65c; stroke: #ffc65c; }
+.sheet-wrap .plan .lamp.on .halo { fill: rgba(255, 198, 92, .35); }
+.sheet-wrap .card { background: var(--panel); border-color: var(--line); }
+.sheet-wrap .ic { color: var(--text); }
+body[data-sky="night"] .sheet-wrap .ic { color: var(--ic-fg, var(--text)); }
+.sheet-wrap .al-time, .sheet-wrap .ed-val, .sheet-wrap .tm-left { font-weight: 200; }
+.sheet-wrap .media { border-radius: 2.8rem; }
+
+/* ---------- Menú: la semana en 7 columnas ---------- */
+.sheet-wrap[data-kind="menu"] .sheet { width: 118rem; max-height: 74rem; }
+.sheet-wrap[data-kind="menu"] .menu-list { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1.2rem; max-height: none; overflow: visible; }
+.sheet-wrap[data-kind="menu"] .menu-row { flex-direction: column; align-items: stretch; gap: .9rem; padding: 1.4rem 1.2rem; border: 1px solid var(--line); border-radius: 2rem; background: var(--panel); }
+.sheet-wrap[data-kind="menu"] .menu-row.today { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc); }
+.sheet-wrap[data-kind="menu"] .menu-row.today .menu-day { color: var(--acc); }
+.sheet-wrap[data-kind="menu"] .menu-day { width: auto; font-size: 1.6rem; color: var(--muted); }
+.sheet-wrap[data-kind="menu"] .menu-fields { grid-template-columns: 1fr; gap: .8rem; }
+.sheet-wrap[data-kind="menu"] .menu-fields .ed-input { font-size: 1.5rem; font-weight: 500; padding: .9rem .6rem; }
+.sheet-wrap[data-kind="menu"] .menu-fields .ing { font: inherit; font-size: 1.5rem; font-weight: 400; line-height: 1.35; height: 14rem; resize: none; }
+.sheet-wrap[data-kind="menu"] .menu-row > .btn { font-size: 1.6rem; padding: .9rem 1rem; background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+
+/* ---------- Música: tarjetas de cristal con el color de cada app ---------- */
+.sheet-wrap .media { position: relative; background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 2.8rem 3rem; gap: .6rem; }
+.sheet-wrap .media::before { content: ""; width: 6rem; height: 6rem; border-radius: 50%; margin-bottom: 1.4rem; box-shadow: 0 1rem 2.6rem var(--mc-glow); background: var(--mc); }
+.sheet-wrap .media.spotify { --mc: radial-gradient(circle at 35% 30%, #6ff0a0, #1ed760 55%, #119a44); --mc-glow: rgba(30, 215, 96, .4); }
+.sheet-wrap .media.youtube { --mc: radial-gradient(circle at 35% 30%, #ff8a80, #e8352f 55%, #a81c17); --mc-glow: rgba(232, 53, 47, .35); }
+.sheet-wrap .media-n { font-size: 3rem; font-weight: 500; }
+.sheet-wrap .media-s { color: var(--muted); opacity: 1; }
+.sheet-wrap .media:active { transform: scale(.99); }
+
+/* ---------- Alarmas y tareas: cada fila como una tarjeta ---------- */
+.sheet-wrap .al-list, .sheet-wrap .note-list { display: flex; flex-direction: column; gap: 1rem; }
+.sheet-wrap .al-row, .sheet-wrap .al-row:last-child { border: 1px solid var(--line); border-radius: 2.2rem; padding: 1.4rem 2rem; background: var(--panel); }
+.sheet-wrap .al-time { font-size: 6.4rem; }
+.sheet-wrap .note-list > .note-row { border: 1px solid var(--line); border-radius: 2rem; padding: 1.2rem 1.6rem; background: var(--panel); }
+.sheet-wrap .note-row.due .note-text { color: var(--sun); font-weight: 600; }
+
+/* ---------- Avisos de SMHI: pastilla con el color del nivel y ventana de detalle ---------- */
+.app .pill.warn { color: var(--text); font-weight: 600; }
+.app .pill.warn .ic { background: var(--wc); color: #fff; }
+.app .pill.warn.yellow { --wc: #d9a514; border-color: rgba(217, 165, 20, .75); background: rgba(255, 205, 60, .28); }
+.app .pill.warn.orange { --wc: #e5731f; border-color: rgba(229, 115, 31, .8); background: rgba(255, 140, 50, .28); }
+.app .pill.warn.red { --wc: #d93a2e; border-color: rgba(217, 58, 46, .85); background: rgba(240, 70, 55, .3); animation: warn-pulse 2.4s ease-in-out infinite; }
+@keyframes warn-pulse { 50% { box-shadow: 0 0 0 .5rem rgba(240, 70, 55, .18); } }
+.sheet-wrap[data-kind="warn"] .sheet { width: 82rem; }
+.sheet-wrap .warn-happens { font-size: 2.2rem; line-height: 1.4; margin: 1.6rem 0 0; color: var(--text); }
+.sheet-wrap .warn-h { font-size: 1.7rem; font-weight: 600; color: var(--muted); margin: 2.4rem 0 0; }
+.sheet-wrap .warn-level { margin: 2.4rem 0 0; padding: 1.2rem 1.6rem; border-radius: 1.6rem; font-size: 1.6rem; color: var(--text); border-left: .6rem solid var(--wc); background: var(--panel); }
+.sheet-wrap .warn-level.yellow { --wc: #d9a514; }
+.sheet-wrap .warn-level.orange { --wc: #e5731f; }
+.sheet-wrap .warn-level.red { --wc: #d93a2e; }
+.pills.top .pill.warn { flex: none; } /* el aviso nunca se recorta: si falta sitio, se esconden los demás en «+N» */
+.topline:has(.pill.warn) .sys > span { display: none; } /* con un aviso de SMHI, el texto de estado deja sitio (queda el punto de color) */

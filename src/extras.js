@@ -9,6 +9,7 @@ import { listAlarms } from "./alarms.js";
 import { listDeviceConfig, controlDevice } from "./devices.js";
 import * as L from "./life.js";
 import { getAir, getAurora } from "./outdoor.js";
+import { addUsage } from "./usage.js";
 
 // Lo nuevo de la casa para los resúmenes hablados: plantas, colegio, menú, festivos, polen y auroras
 async function lifeLines(env, { when }) {
@@ -127,37 +128,88 @@ function inPolygon(pt, ring) {
   return inside;
 }
 
-function coversHome(geometry) {
+function coversHome(geometry, pt) {
   if (!geometry) return false;
   const toPt = (c) => (typeof c === "string" ? c.trim().split(/\s+/).map(Number) : c);
   const polys = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.type === "MultiPolygon" ? geometry.coordinates : [];
-  return polys.some((p) => p[0] && inPolygon({ lat: config().lat, lon: config().lon }, p[0].map(toPt)));
+  return polys.some((p) => p[0] && inPolygon(pt, p[0].map(toPt)));
 }
 
-export async function getWarnings() {
+// Nombres en español de los tipos de aviso de SMHI (metadata/events.json)
+const WARN_ES = {
+  THUNDER: "Tormenta eléctrica", WIND: "Viento fuerte", WIND_MOUNTAINS: "Viento en la montaña", STRONG_COOLING: "Frío intenso",
+  SNOW: "Nieve", BLACK_ICE: "Hielo en las calles", RAIN: "Lluvia intensa", HIGH_TEMPERATURES: "Calor intenso",
+  WIND_SEA: "Viento en el mar", ICE_ACCRETION: "Hielo en barcos", LOW_SEA_LEVEL: "Nivel del mar bajo", HIGH_SEALEVEL: "Nivel del mar alto",
+  WATER_SHORTAGE: "Riesgo de falta de agua", HIGH_FLOW: "Ríos muy crecidos", FLOODING: "Inundaciones", FIRE: "Riesgo de incendio",
+};
+export const LEVEL_ES = { yellow: "amarillo", orange: "naranja", red: "rojo" };
+
+// Traduce al español la descripción de un aviso (una vez por versión publicada; se guarda en KV).
+// Modelo pequeño: unas 20 neuronas por aviso. Si falla, queda el texto en inglés.
+async function warnSpanish(env, id, src) {
+  const key = "smhiaviso:es:" + id;
+  const cached = env && (await env.NEXUS_KV.get(key, "json").catch(() => null));
+  if (cached) return cached;
+  if (!env || !env.AI) return null;
+  const model = "@cf/openai/gpt-oss-20b";
+  const r = await env.AI.run(model, {
+    messages: [
+      { role: "system", content: "Traduces avisos meteorológicos oficiales de SMHI al español de España, claro y breve, para una familia. Responde solo con JSON: {\"happens\": string, \"affect\": [string]}. happens: qué va a pasar (1-2 frases). affect: 2 a 4 frases cortas con lo que dice el original sobre qué tener en cuenta, sin añadir consejos propios. Los lugares, con su nombre sueco (p. ej. Bottenhavet, Vänern, Västra Götaland)." },
+      { role: "user", content: JSON.stringify(src) + "\nNombres suecos de los lugares, por si aparecen: " + (src.sv || "") },
+    ],
+    reasoning: { effort: "low" },
+    max_tokens: 2000,
+  });
+  const u = r.usage || {};
+  await addUsage(env, ((u.prompt_tokens || 0) * 0.2 + (u.completion_tokens || 0) * 0.3) / 0.011 / 1000).catch(() => {});
+  const txt = String((r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content) || r.response || "");
+  const m = txt.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("respuesta sin JSON: " + txt.slice(0, 120));
+  const j = JSON.parse(m[0]);
+  const out = { happens: String(j.happens || "").slice(0, 400), affect: (Array.isArray(j.affect) ? j.affect : []).map((x) => String(x).slice(0, 220)).slice(0, 4) };
+  if (!out.happens) return null;
+  await env.NEXUS_KV.put(key, JSON.stringify(out), { expirationTtl: 10 * 86400 });
+  return out;
+}
+
+// Avisos amarillos, naranjas o rojos que cubren la casa (ahora o en las próximas 48 h).
+// Los "mensajes" informativos (p. ej. riesgo de falta de agua durante meses) no se muestran.
+// WARN_TEST_POINT ("lat,lon", solo en pruebas locales) mira otro punto para ver un aviso real.
+export async function getWarnings(env) {
   if (warnCache.data && Date.now() - warnCache.at < 10 * 60 * 1000) return warnCache.data;
   const r = await fetch("https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning.json");
   if (!r.ok) throw new Error("SMHI no responde");
   const all = await r.json();
+  const test = env && env.WARN_TEST_POINT && env.WARN_TEST_POINT.split(",").map(Number);
+  const pt = test ? { lat: test[0], lon: test[1] } : { lat: config().lat, lon: config().lon };
   const now = Date.now(), soon = now + 48 * 3600 * 1000;
   const out = [];
   for (const w of all) {
     for (const a of w.warningAreas || []) {
       const level = a.warningLevel && a.warningLevel.code;
-      if (!["YELLOW", "ORANGE", "RED"].includes(level)) continue; // solo avisos, no mensajes informativos
+      if (!["YELLOW", "ORANGE", "RED"].includes(level)) continue;
       const start = Date.parse(a.approximateStart || 0), end = a.approximateEnd ? Date.parse(a.approximateEnd) : Infinity;
       if (end < now || start > soon) continue;
-      if (!coversHome(a.area && a.area.geometry)) continue;
+      if (!coversHome(a.area && a.area.geometry, pt)) continue;
+      const code = (w.event && w.event.code) || "";
+      const desc = (c) => { const d = (a.descriptions || []).find((x) => x.title && x.title.code === c); return d && d.text ? (d.text.en || d.text.sv || "").trim() : ""; };
+      const src = { event: w.event && w.event.en, happens: desc("HAPPENS") || desc("INCIDENT"), incident: desc("INCIDENT"), affect: desc("AFFECT") };
+      const sv = (a.descriptions || []).map((x) => x.text && x.text.sv).find(Boolean);
+      const id = `${w.id}-${a.id}-${Date.parse(a.published || 0) || 0}`;
+      const es = await warnSpanish(env, id, { ...src, sv: (sv || "").slice(0, 400) }).catch((e) => { console.log("SMHI: no se pudo traducir el aviso", e.message); return null; });
       out.push({
-        level: level.toLowerCase(),
-        event: (w.event && w.event.sv) || "Aviso",
-        eventEn: w.event && w.event.en,
+        id, level: level.toLowerCase(), code,
+        event: WARN_ES[code] || (w.event && w.event.sv) || "Aviso",
+        eventSv: w.event && w.event.sv,
         area: a.areaName && a.areaName.sv,
         start: a.approximateStart, end: a.approximateEnd || null,
-        text: ((a.eventDescription && a.eventDescription.sv) || "").slice(0, 300),
+        happens: es ? es.happens : src.happens,
+        affect: es ? es.affect : src.affect.split("\n").filter(Boolean).slice(0, 4),
+        text: es ? es.happens : src.happens, // compatibilidad con el asistente y el panel antiguo
       });
     }
   }
+  out.sort((x, y) => ["red", "orange", "yellow"].indexOf(x.level) - ["red", "orange", "yellow"].indexOf(y.level));
   warnCache = { at: Date.now(), data: out };
   return out;
 }
@@ -170,11 +222,11 @@ export async function getBriefing(env, { morning = false } = {}) {
   const parts = [`${saludo}${morning ? ", familia" : ""}. Son las ${fHour.format(now)}.`];
   const safe = (p) => p.catch(() => null);
   const [w, agenda, pickups, warnings, notes, power, detail, dates] = await Promise.all([
-    safe(getWeather()), safe(getAgenda(env)), safe(nextPickups(env)), safe(getWarnings()), safe(listNotes(env)), safe(getPower()), safe(getWeatherDetail()),
+    safe(getWeather()), safe(getAgenda(env)), safe(nextPickups(env)), safe(getWarnings(env)), safe(listNotes(env)), safe(getPower()), safe(getWeatherDetail()),
     safe(upcomingDates(env, 7)),
   ]);
   if (w) parts.push(`En ${config().city} hay ${w.now.temp} grados, ${w.now.text.toLowerCase()}, con una máxima de ${w.today.max}.`);
-  if (warnings && warnings.length) parts.push(`Atención: SMHI tiene un aviso ${warnings[0].level === "yellow" ? "amarillo" : warnings[0].level === "orange" ? "naranja" : "rojo"} por ${warnings[0].event.toLowerCase()}.`);
+  if (warnings && warnings.length) parts.push(`Atención: SMHI tiene un aviso ${LEVEL_ES[warnings[0].level]} por ${warnings[0].event.toLowerCase()}.`);
   if (agenda && agenda.today) {
     const nowHHMM = fHour.format(now);
     const ev = agenda.today.filter((e) => !e.allDay && e.end > nowHHMM); // solo lo que queda del día
@@ -229,7 +281,7 @@ function recommendations(w, detail, power) {
 export async function householdContext(env) {
   const safe = (p) => p.catch(() => null);
   const [timers, pickups, notes, power, warnings] = await Promise.all([
-    safe(listTimers(env)), safe(nextPickups(env)), safe(listNotes(env)), safe(getPower()), safe(getWarnings()),
+    safe(listTimers(env)), safe(nextPickups(env)), safe(listNotes(env)), safe(getPower()), safe(getWarnings(env)),
   ]);
   return {
     temporizadores: timers && timers.map((t) => ({ id: t.id, nombre: t.label, quedan_seg: Math.max(0, Math.round((t.endsAt - Date.now()) / 1000)) })),

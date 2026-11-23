@@ -4,3 +4,5 @@ NEXUS_TOKEN=pon-aqui-una-clave-hex-de-48-caracteres
 FAMILY_TOKEN=pon-aqui-otra-clave-hex-distinta
 # Opcional: configuración de tu casa (ver src/config.js)
 # NEXUS_HOME={"city":"Göteborg","lat":57.7089,"lon":11.9746,"zone":"SE3","family":["Ana","Luis","Sofía"]}
+# Opcional, solo para probar: un punto (lat,lon) dentro de un aviso activo de SMHI para verlo en el panel
+# WARN_TEST_POINT=60.6,17.4
