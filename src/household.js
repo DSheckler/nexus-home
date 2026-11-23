@@ -43,10 +43,15 @@ export const listShopping = (env) => getList(env, "shopping");
 
 export async function addShopping(env, items) {
   const list = await listShopping(env);
-  const have = new Set(list.map((i) => i.text.toLowerCase()));
+  if (![].concat(items).some((x) => clip(x, 60))) throw new Error("Escribe qué hay que añadir");
+  const have = new Map(list.map((i) => [i.text.toLowerCase(), i]));
   for (const raw of [].concat(items)) {
     const text = clip(raw, 60);
-    if (text && !have.has(text.toLowerCase())) { list.push({ id: "s" + uid(), text, done: false }); have.add(text.toLowerCase()); }
+    if (!text) continue;
+    const old = have.get(text.toLowerCase());
+    if (old) { old.done = false; continue; } // ya estaba (quizá como comprado): vuelve a estar pendiente
+    const it = { id: "s" + uid(), text, done: false };
+    list.push(it); have.set(text.toLowerCase(), it);
   }
   if (list.length > 80) throw new Error("La lista está llena (80 artículos)");
   await putList(env, "shopping", list);

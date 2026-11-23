@@ -198,7 +198,7 @@ const INTENTS = [
 
   // ---------- menú ----------
   {
-    re: /^(que (cenamos|comemos|hay de cena|hay para cenar|toca de cena)( hoy| esta noche| manana)?|que hay (de|para) (cenar|cena)( hoy| manana)?|(el )?menu( de)?( hoy| manana| la semana| esta semana)?)$/,
+    re: /^(que (cenamos|comemos|hay de cena|hay para cenar|toca de cena)( hoy| esta noche| manana| esta semana| la semana)?|que hay (de|para) (cenar|cena)( hoy| manana| esta semana)?|que hay en el menu( de)?( hoy| manana| la semana| esta semana)?|(el )?menu( de)?( hoy| manana| la semana| esta semana)?)$/,
     run: async (m, env) => {
       const q = m[0];
       const menu = await L.getMenu(env, 7);

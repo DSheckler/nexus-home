@@ -431,7 +431,7 @@ export async function askAssistant(env, { text, history = [], cooking = false })
     if (r.home) changed.home = true;
     return { reply: r.reply, changed, end: !!r.end, model: "rutina:" + routine.name, neurons: 0 };
   }
-  if (WEEKLY.test(plain) && question.length < 80) {
+  if (WEEKLY.test(plain) && !/\b(menu|cena|cenamos|cenar|comida|comemos|tareas?|basura|plantas?|compra|lista)\b/i.test(plain) && question.length < 80) {
     return { reply: await getWeeklyBriefing(env), changed, model: "directo", neurons: 0 };
   }
   if (SUMMARY.test(question) && question.length < 80) {

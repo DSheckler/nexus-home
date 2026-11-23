@@ -386,6 +386,10 @@
       const key = r.id + "@" + r.at;
       if (r.at > now || remRung.has(key) || r.at < now - 10 * 60000) continue;
       remRung.add(key);
+      if (vacationActive()) { // fuera de casa: no suena, pero se da por pasado
+        N.api("/api/reminders/" + r.id + "/fired", { method: "POST" }).then((j) => { data.reminders = j.reminders; render(); }).catch(() => {});
+        continue;
+      }
       window.NexusAlarms.ringNow({ id: r.id, kind: "timer", reminder: true, timerLabel: r.text, label: "Recordatorio: " + r.text, routine: false, days: [], enabled: true });
       N.api("/api/reminders/" + r.id + "/fired", { method: "POST" }).then((j) => { data.reminders = j.reminders; render(); }).catch(() => {});
     }
