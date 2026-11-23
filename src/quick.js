@@ -19,11 +19,11 @@ const ZONES = {
   uruguay: "America/Montevideo", venezuela: "America/Caracas", ecuador: "America/Guayaquil", bolivia: "America/La_Paz", paraguay: "America/Asuncion",
   cuba: "America/Havana", brasil: "America/Sao_Paulo", "nueva york": "America/New_York", londres: "Europe/London", "estados unidos": "America/New_York",
 };
-const fShort = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const fShort = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const dayText = (key) => fShort.format(new Date(key + "T12:00:00Z"));
 
 const TZ = "Europe/Stockholm";
-const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+const fHour = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
 const kr = (v) => String(v.toFixed(2)).replace(".", ",");
 
 // Números escritos con palabras (Whisper suele poner cifras, pero no siempre)
@@ -46,7 +46,7 @@ function clean(q) {
 }
 const words = (q) => q.split(" ").length;
 const ORIGINAL = { text: "" }; // la frase original de la petición en curso
-const fDate = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
+const fDate = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
 const WX = /\b(tiempo|clima|temperatura|grados|frio|calor|abrigo)\b/;
 const WET = /\b(llover|llovera|llueve|lluvia|nevar|nevara|nieva|nieve|paraguas)\b/;
 const NOT_WX = /\b(temporizador|alarma|recuerda|recuerdame|avisa|avisame|cuanto tiempo|queda|falta|tarda|hace cuanto|semana|pasado manana)\b/;
@@ -119,7 +119,7 @@ const INTENTS = [
   timerIntent(/^(avisame|recuerdame|llamame) (en|dentro de) (.+?)( para (.+))?$/, 3, 5),
   timerIntent(/^(temporizador|timer|cronometro) (de )?(.+?)( para (.+))?$/, 3, 5),
 
-  // ---------- lista de la compra ----------
+  // ---------- lista de compras ----------
   {
     re: /^(anade|agrega|apunta|pon|mete|anota|incluye|apuntame) (.+?) (a|en) (la|mi) (lista|compra)( de (la )?compras?| del super(mercado)?)?$/,
     run: async (m, env, changed) => {
@@ -127,14 +127,14 @@ const INTENTS = [
       if (!items.length) return null;
       await H.addShopping(env, items);
       changed.home = true;
-      return `Añadido a la lista: ${items.join(", ")}.`;
+      return `Agregado a la lista: ${items.join(", ")}.`;
     },
   },
   {
     re: /^(que (hay|tenemos|tengo|falta|queda|pone) (en )?(la|mi) (lista|compra)( de (la )?compras?)?|lee(me)? (la|mi) lista( de (la )?compras?)?|que (hay|tenemos|tengo) que comprar|que (falta|necesitamos) comprar|(la )?lista de (la )?compras?|como (esta|va) la lista( de (la )?compras?)?)$/,
     run: async (m, env) => {
       const pending = (await H.listShopping(env)).filter((i) => !i.done).map((i) => i.text);
-      if (!pending.length) return "La lista de la compra está vacía.";
+      if (!pending.length) return "La lista de compras está vacía.";
       return `En la lista hay ${pending.length === 1 ? "una cosa" : pending.length + " cosas"}: ${pending.slice(0, 12).join(", ")}.`;
     },
   },
@@ -192,7 +192,7 @@ const INTENTS = [
       }
       const r = await P.addReminder(env, { text: originalTail(ORIGINAL.text, text), at });
       changed.home = true;
-      return `Vale, te lo recuerdo el ${P.whenText(r.at)}: ${r.text}.`;
+      return `Listo, te lo recuerdo el ${P.whenText(r.at)}: ${r.text}.`;
     },
   },
 
@@ -204,7 +204,7 @@ const INTENTS = [
       const menu = await L.getMenu(env, 7);
       if (/semana/.test(q)) {
         const set = menu.filter((d) => d.meal);
-        if (!set.length) return "El menú de la semana está vacío. Podéis rellenarlo en el panel, en Menú, o pedirme que lo planifique.";
+        if (!set.length) return "El menú de la semana está vacío. Pueden llenarlo en el panel, en Menú, o pedirme que lo planifique.";
         return "Menú: " + set.map((d) => `${d === menu[0] ? "hoy" : dayText(d.date).split(",")[0]}, ${d.meal}`).join("; ") + ".";
       }
       const d = /manana/.test(q) ? menu[1] : menu[0];
@@ -252,7 +252,7 @@ const INTENTS = [
       const parts = [];
       parts.push(a.pollen.length ? `Polen hoy: ${a.pollen.map((p) => `${p.name} ${p.level}`).join(", ")}.` : "Hoy apenas hay polen.");
       if (a.aqiText) parts.push(`La calidad del aire es ${a.aqiText}.`);
-      if (a.uvMax >= 3) parts.push(`Índice UV máximo ${String(a.uvMax).replace(".", ",")}${a.uvMax >= 6 ? ": usad protector solar" : ""}.`);
+      if (a.uvMax >= 3) parts.push(`Índice UV máximo ${String(a.uvMax).replace(".", ",")}${a.uvMax >= 6 ? ": usen protector solar" : ""}.`);
       return parts.join(" ");
     },
   },
@@ -266,7 +266,7 @@ const INTENTS = [
       const mine = abroad.find((x) => x.name.toLowerCase().includes(place));
       const tz = mine ? mine.tz : ZONES[place];
       if (!tz) return null;
-      const t = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
+      const t = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
       return `En ${mine ? mine.name : place.charAt(0).toUpperCase() + place.slice(1)} son las ${t}.`;
     },
   },
@@ -286,7 +286,7 @@ const INTENTS = [
     re: /^(que tareas (hay|tenemos|tocan|quedan|me tocan|hay que hacer)( hoy| esta semana| pendientes)?|(las )?tareas( de (hoy|la casa|la semana))?|a quien le toca( hoy)?( .{2,40})?)$/,
     run: async (m, env) => {
       const list = await P.listChores(env);
-      if (!list.length) return "No hay tareas de la casa apuntadas. Puedes crearlas en el panel, en Tareas.";
+      if (!list.length) return "No hay tareas de la casa anotadas. Puedes crearlas en el panel, en Tareas.";
       const due = list.filter((c) => c.dueIn <= 0);
       const say = (c) => `${c.name}${c.who ? `, le toca a ${c.who}` : ""}`;
       if (due.length) return `Hoy toca: ${due.slice(0, 5).map(say).join("; ")}.`;

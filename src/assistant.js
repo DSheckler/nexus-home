@@ -31,7 +31,7 @@ const TZ = "Europe/Stockholm";
 const MAX_HISTORY = 6;   // turnos previos que se reenvían (menos texto = menos cuota)
 const MAX_STEPS = 6;     // vueltas máximas modelo -> herramientas -> modelo
 
-const fNow = new Intl.DateTimeFormat("es-ES", {
+const fNow = new Intl.DateTimeFormat("es-CL", {
   weekday: "long", year: "numeric", month: "long", day: "numeric",
   hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ,
 });
@@ -41,7 +41,7 @@ const listNames = (a) => (a.length > 1 ? a.slice(0, -1).join(", ") + " y " + a[a
 const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
 
 const SYSTEM = () => `Eres NEXUS, el asistente del panel de control de una casa en ${config().city} (Suecia).
-La familia que vive en la casa la forma ${listNames(config().family)}. Hablas en español, con un tono cercano y tranquilo.
+La familia que vive en la casa la forma ${listNames(config().family)}. Hablas en español neutro de Chile, con un tono cercano y tranquilo: trata de tú a una persona y de «ustedes» a varias (nunca «vosotros»), y usa palabras de Chile (celular, auto, departamento, living, refrigerador, lavaloza, agregar, anotar, papas, frutillas, palta). Evita expresiones de España como «vale», «vaya», «guay», «coger» o «celular».
 
 Tus respuestas se leen en voz alta en una tablet colgada en la pared:
 - Responde en una o dos frases cortas (como mucho unas 35 palabras), sin listas, sin markdown, sin emojis y sin enlaces.
@@ -58,7 +58,7 @@ Herramientas:
 - Antes de borrar un evento o una alarma, confirma con la persona salvo que lo haya pedido de forma explícita e inequívoca.
 - Después de crear, cambiar o borrar algo, confírmalo en una frase con el día y la hora.
 - "Pon un temporizador de…": usa crear_temporizador (en segundos) con un nombre corto si lo dicen ("pasta").
-- "Añade leche a la lista", "¿qué hay en la lista?": lista de la compra compartida.
+- "Agrega leche a la lista", "¿qué hay en la lista?": lista de compras compartida.
 - "Dile a ${config().family[config().family.length - 1] || "alguien"} que…", "deja una nota…": dejar_nota; las notas se ven en el panel hasta que alguien las quita.
 - "Pon música", "pon a Shakira en Spotify", "pon un vídeo de…": abrir_musica (Spotify para música, YouTube para vídeos). Avisa de que se abre la app y que el botón de inicio vuelve a NEXUS.
 - Luces y enchufes de casa: usa estado_casa y controlar_dispositivo; si no hay dispositivos configurados, dilo.
@@ -66,7 +66,7 @@ Herramientas:
 - Cumpleaños y aniversarios: guardar_fecha / borrar_fecha / ver_fechas. Las próximas vienen en los datos actuales.
 - Recordatorios con día y hora ("recuérdame el jueves a las 18 sacar la basura"): crear_recordatorio con fecha y hora exactas calculadas desde la fecha actual; ver_recordatorios; borrar_recordatorio. Para "en 10 minutos" usa un temporizador.
 - Recordatorios que se repiten ("cada lunes a las 8", "cada día 25"): crear_recordatorio con repetir (unidad dia/semana/mes y cada N); la fecha es la primera vez.
-- Menú de la semana: ver_menu, poner_menu (una llamada por día; añade ingredientes si los sabes), menu_a_compra para pasar los ingredientes a la lista.
+- Menú de la semana: ver_menu, poner_menu (una llamada por día; agrega ingredientes si los sabes), menu_a_compra para pasar los ingredientes a la lista.
 - Cocinar: "vamos a cocinar X" o "cocinemos lo del menú" → mostrar_receta con pasos cortos y claros (y minutos si hay espera). Luego responde solo con el primer paso.
 - Plantas: ver_plantas / regar_plantas ("ya regué las plantas"). Colegio: ver_colegio. Vacaciones: modo_vacaciones con fechas, o quitar_vacaciones al volver.
 - Tareas de la casa con turnos (regar plantas cada 3 días, le toca a…): ver_tareas, crear_tarea, tarea_hecha ("ya regué las plantas"), borrar_tarea.
@@ -154,12 +154,12 @@ function buildTools(env, changed) {
       run: async (a) => { await H.deleteTimer(env, a.id); changed.home = true; return { cancelado: true }; },
     },
     anadir_compra: {
-      description: "Añade uno o varios artículos a la lista de la compra compartida.",
+      description: "Agrega uno o varios artículos a la lista de compras compartida.",
       parameters: S({ articulos: { type: "array", items: { type: "string" } } }, ["articulos"]),
       run: async (a) => { const l = await H.addShopping(env, a.articulos); changed.home = true; return { articulos_en_lista: l.length }; },
     },
     ver_compra: {
-      description: "Lista de la compra actual.",
+      description: "Lista de compras actual.",
       parameters: S({}),
       run: async () => (await H.listShopping(env)).map((i) => ({ articulo: i.text, comprado: i.done })),
     },
@@ -184,8 +184,8 @@ function buildTools(env, changed) {
       run: async (a) => { changed.open = { app: a.app, query: (a.buscar || "").slice(0, 80) }; return { abriendo: a.app }; },
     },
     avisar_luz_barata: {
-      description: "Busca la hora más barata de las próximas 24 h para usar un aparato (lavadora, lavavajillas, secadora…) y deja un aviso. Si cae de noche, crea un recordatorio antes de dormir para usar el inicio diferido. Explica la hora, cuánto cuesta el kWh entonces frente a ahora, y el aviso creado.",
-      parameters: S({ aparato: { type: "string", description: "Por ejemplo: la lavadora, el lavavajillas, la secadora" }, duracion_horas: { type: "integer", minimum: 1, maximum: 4, description: "Cuánto dura el programa (lavadora 2, lavavajillas 2, secadora 2)" } }, ["aparato"]),
+      description: "Busca la hora más barata de las próximas 24 h para usar un aparato (lavadora, lavaloza, secadora…) y deja un aviso. Si cae de noche, crea un recordatorio antes de dormir para usar el inicio diferido. Explica la hora, cuánto cuesta el kWh entonces frente a ahora, y el aviso creado.",
+      parameters: S({ aparato: { type: "string", description: "Por ejemplo: la lavadora, el lavaloza, la secadora" }, duracion_horas: { type: "integer", minimum: 1, maximum: 4, description: "Cuánto dura el programa (lavadora 2, lavaloza 2, secadora 2)" } }, ["aparato"]),
       run: async (a) => { const r = await planCheapPower(env, { appliance: a.aparato, hours: a.duracion_horas || 2 }); changed.home = true; return r; },
     },
     guardar_fecha: {
@@ -223,7 +223,7 @@ function buildTools(env, changed) {
       run: async (a) => { await L.setMenu(env, a.fecha, { meal: a.comida, ingredients: a.ingredientes }); changed.home = true; return { guardado: true }; },
     },
     menu_a_compra: {
-      description: "Añade a la lista de la compra los ingredientes del menú entre dos fechas que aún no estén en la lista.",
+      description: "Agrega a la lista de compras los ingredientes del menú entre dos fechas que aún no estén en la lista.",
       parameters: S({ desde: DATE, hasta: DATE }, []),
       run: async (a) => {
         const want = await L.menuIngredients(env, a.desde, a.hasta);
@@ -483,5 +483,5 @@ export async function askAssistant(env, { text, history = [], cooking = false })
     const results = await Promise.all(calls.map((c) => runTool(tools, c)));
     calls.forEach((c, i) => messages.push({ role: "tool", tool_call_id: c.id, name: c.function.name, content: results[i] }));
   }
-  return { reply: "Lo siento, me he liado con esa petición. ¿Puedes decírmelo de otra forma?", changed, model, neurons: Math.round(neurons) };
+  return { reply: "Lo siento, me enredé con esa petición. ¿Puedes decírmelo de otra forma?", changed, model, neurons: Math.round(neurons) };
 }

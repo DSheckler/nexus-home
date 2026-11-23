@@ -1,5 +1,5 @@
 // Datos de la casa guardados en Cloudflare KV:
-// temporizadores, lista de la compra, notas familiares y calendario de recogida de basura.
+// temporizadores, lista de compras, notas familiares y calendario de recogida de basura.
 
 const TZ = "Europe/Stockholm";
 const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
@@ -38,12 +38,12 @@ export async function deleteTimer(env, id) {
   return left;
 }
 
-// ---------- Lista de la compra ----------
+// ---------- Lista de compras ----------
 export const listShopping = (env) => getList(env, "shopping");
 
 export async function addShopping(env, items) {
   const list = await listShopping(env);
-  if (![].concat(items).some((x) => clip(x, 60))) throw new Error("Escribe qué hay que añadir");
+  if (![].concat(items).some((x) => clip(x, 60))) throw new Error("Escribe qué hay que agregar");
   const have = new Map(list.map((i) => [i.text.toLowerCase(), i]));
   for (const raw of [].concat(items)) {
     const text = clip(raw, 60);

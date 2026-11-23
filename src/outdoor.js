@@ -86,7 +86,7 @@ export function getAurora(env) {
     }
     const kp = Math.round(best.kp * 10) / 10;
     const chance = kp >= 5 ? "alta" : kp >= 4 ? "posible" : null;
-    const hh = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ }).format(new Date(best.at));
+    const hh = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ }).format(new Date(best.at));
     return { kp, chance: chance && (clouds == null || clouds < 70) ? chance : null, clouds, at: best.at, when: hh };
   });
 }

@@ -1,5 +1,5 @@
-// Conexión en vivo con las pantallas (tablet y móviles) mediante WebSocket.
-// Cuando alguien añade algo a la lista o deja una nota, el servidor lo envía al momento
+// Conexión en vivo con las pantallas (tablet y celulares) mediante WebSocket.
+// Cuando alguien agrega algo a la lista o deja una nota, el servidor lo envía al momento
 // a todas las pantallas conectadas, sin esperar a la siguiente actualización.
 // Usa un Durable Object con "hibernación": mientras nadie escribe, no consume nada.
 

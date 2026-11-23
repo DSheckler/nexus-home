@@ -6,7 +6,7 @@ import { config } from "./config.js";
 const TZ = "Europe/Stockholm";
 const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
 const fParts = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const fWhen = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+const fWhen = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const clip = (s, n) => String(s || "").trim().slice(0, n);
 const DAY = 86400000;
@@ -171,7 +171,7 @@ export async function deleteChore(env, which) {
 }
 
 // ---------- invitados ----------
-// Enlace temporal para que una visita use la lista de la compra y las notas. La clave se guarda
+// Enlace temporal para que una visita use la lista de compras y las notas. La clave se guarda
 // en KV con caducidad ("guest:<clave>") y en una lista para poder verla y revocarla.
 const hex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, "0")).join("");
 

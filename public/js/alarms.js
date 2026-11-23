@@ -361,7 +361,7 @@
       if (kind === "h") { hh = (hh + dir + 24) % 24; hVal.textContent = pad(hh); }
       else { mm = dir > 0 ? (Math.floor(mm / 5) * 5 + 5) % 60 : (Math.ceil(mm / 5) * 5 - 5 + 60) % 60; mVal.textContent = pad(mm); }
     }
-    // Mantener pulsado repite el paso
+    // Mantener presionado repite el paso
     function stepper(kind, dir, label) {
       const b = h("button", { class: "ed-step", type: "button", "aria-label": label, html: dir > 0 ? chevUp : chevDown });
       let t1, t2;

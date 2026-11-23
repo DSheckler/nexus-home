@@ -19,11 +19,11 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   cuántos minutos se ganan o se pierden mañana y la temperatura del día.
 - **Avisos oficiales de SMHI en español**: los avisos amarillos, naranjas o rojos de tu zona aparecen arriba
   con su color; al tocarlos se ve qué va a pasar, cuándo y qué tener en cuenta (traducido una vez por aviso con
-  Workers AI). También salen en el móvil y en el resumen hablado.
-- **Agenda familiar** de Google Calendar, interactiva: ver 14 días, filtrar por persona, añadir y quitar
+  Workers AI). También salen en el celular y en el resumen hablado.
+- **Agenda familiar** de Google Calendar, interactiva: ver 14 días, filtrar por persona, agregar y quitar
   eventos. También para quien no tiene cuenta de Google (un niño).
 - **Asistente de voz "Oye NEXUS"**: entiende y responde en español, crea alarmas, temporizadores y eventos,
-  añade cosas a la lista, deja notas, abre Spotify o YouTube.
+  agrega cosas a la lista, deja notas, abre Spotify o YouTube.
 - **Alarmas** con melodía suave que va creciendo, **temporizadores** con su propio sonido y rutina de
   buenos días: un resumen hablado con el tiempo, la agenda y recomendaciones (ropa, paraguas, luz barata).
 - **Resumen de la mañana y de la noche a petición**: NEXUS no habla por su cuenta. Al despertar y las 2 horas
@@ -32,21 +32,21 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
 - **Precio real de la luz**: spot más red, impuesto, IVA y tu contrato, y aviso de la hora más barata para
   la lavadora.
 - **Gasto de luz del mes** sin contador conectado: NEXUS lo estima con tu consumo habitual y el precio de
-  cada hora. Cuando llega la factura, apuntas los kWh del mes desde el móvil y el cálculo queda exacto.
+  cada hora. Cuando llega la factura, anotas los kWh del mes desde el celular y el cálculo queda exacto.
   Si el mes sale mucho más caro o más barato, la tarjeta dice por qué: el precio medio del mercado frente al
   mes anterior («Mercado ×2,1 vs octubre»).
-- **Lista de la compra y notas** compartidas desde el móvil (sin instalar nada). Los cambios llegan al panel
+- **Lista de compras y notas** compartidas desde el celular (sin instalar nada). Los cambios llegan al panel
   **al instante** (conexión en vivo por WebSocket), y una nota nueva suena con un aviso corto.
-- **Notas de voz**: se graban desde el móvil (hasta 1 minuto). En el panel aparecen como una tarjeta azul
+- **Notas de voz**: se graban desde el celular (hasta 1 minuto). En el panel aparecen como una tarjeta azul
   que se toca para escucharla. Se puede escuchar como máximo 2 veces y luego se borra sola (o antes, con «Quitar»).
 - **Cumpleaños y aniversarios** (también los de los contactos del iPhone, exportando un archivo o con un Atajo: [guía](docs/atajo-cumpleanos.md)), rutinas ("me voy", "ya llegué", "buenas noches") y **modo noche**.
 - **Recordatorios con hora** («recuérdame mañana a las 18 sacar la basura»): suenan en el panel.
 - **Tareas de la casa** que se repiten (regar las plantas cada 3 días) con turnos que rotan solos.
-- **Modo invitados**: un QR en el panel (o un enlace desde el móvil) para que una visita use la lista
+- **Modo invitados**: un QR en el panel (o un enlace desde el celular) para que una visita use la lista
   y las notas durante 24 horas, sin ver nada más.
 - **Resumen de la semana** el domingo por la tarde (botón «Resumen de la semana»): agenda, cumpleaños, basura, tareas, tiempo y luz.
 - **Aviso de luz barata o cara** en el panel y **comparación** del gasto con el contrato anterior.
-- **Menú de la semana** (panel, móvil y voz) que pasa los ingredientes a la lista, y **modo cocina**: la receta
+- **Menú de la semana** (panel, celular y voz) que pasa los ingredientes a la lista, y **modo cocina**: la receta
   paso a paso a pantalla completa, manejada por voz («siguiente», «repite», «pon el temporizador»).
 - **Plantas**: tarjeta con el próximo riego en días fijos (p. ej. cada dos domingos).
 - **Recordatorios que se repiten** («recuérdame cada lunes a las 8 sacar el cartón»).
@@ -59,7 +59,7 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
 |---|---|
 | ![De noche, con aviso de SMHI](docs/capturas/15-modo-noche.png) | ![Aviso de SMHI](docs/capturas/20-aviso-smhi.png) |
 | ![Menú de la semana](docs/capturas/19-menu-semana.png) | ![Barra del sol](docs/capturas/02-tiempo-interactivo.png) |
-| ![Móvil de día](docs/capturas/16-iphone-compra-y-notas.png) | ![Móvil en modo oscuro](docs/capturas/21-iphone-oscuro.png) |
+| ![Celular de día](docs/capturas/16-iphone-compra-y-notas.png) | ![Celular en modo oscuro](docs/capturas/21-iphone-oscuro.png) |
 
 Más capturas en [`docs/capturas`](docs/capturas).
 
@@ -71,7 +71,7 @@ Tablet (app Android mínima)  ──HTTPS──>  Cloudflare Worker  ──>  Op
   micrófono, alarmas, sonidos             public/ (panel)   ──>  Google Calendar (cuenta de servicio)
                                           KV (datos)        ──>  Workers AI: Whisper (voz → texto),
                                           Durable Object (avisos en vivo)
-Móvil (navegador) ── lista y notas                                gpt-oss-120b (asistente), Aura-2 (voz)
+Celular (navegador) ── lista y notas                                gpt-oss-120b (asistente), Aura-2 (voz)
 ```
 
 - **Las claves nunca están en la tablet ni en el código.** Se guardan como *secrets* de Cloudflare.
@@ -99,7 +99,7 @@ Necesitas una cuenta gratuita de [Cloudflare](https://dash.cloudflare.com/sign-u
    ```powershell
    npx wrangler kv namespace create NEXUS_KV
    ```
-3. **Crea dos claves**: una para la tablet y otra para los móviles. Ejecuta este comando dos veces:
+3. **Crea dos claves**: una para la tablet y otra para los celulares. Ejecuta este comando dos veces:
    ```powershell
    node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
    ```
@@ -121,8 +121,8 @@ Necesitas una cuenta gratuita de [Cloudflare](https://dash.cloudflare.com/sign-u
    npx wrangler deploy
    ```
 6. **Abre el panel** en la tablet: `https://<tu-worker>.workers.dev/#token=<NEXUS_TOKEN>`. La clave se
-   guarda en la tablet y desaparece de la dirección. En el móvil:
-   `https://<tu-worker>.workers.dev/movil.html#k=<FAMILY_TOKEN>`, y después *Añadir a pantalla de inicio*.
+   guarda en la tablet y desaparece de la dirección. En el celular:
+   `https://<tu-worker>.workers.dev/movil.html#k=<FAMILY_TOKEN>`, y después *Agregar a pantalla de inicio*.
 
 ### Opcional: Google Calendar
 1. En [Google Cloud](https://console.cloud.google.com) crea un proyecto, activa la **Google Calendar API**
@@ -133,7 +133,7 @@ Necesitas una cuenta gratuita de [Cloudflare](https://dash.cloudflare.com/sign-u
    - `GOOGLE_SA`: el contenido del JSON;
    - `GOOGLE_CALENDARS`: `[{"who":"ana","name":"Ana","color":"#6fa8dc","id":"ana@gmail.com"}, …]`.
 
-   Para alguien sin cuenta de Google, añade `"host":"ana"` y el `id` del calendario de esa persona
+   Para alguien sin cuenta de Google, agrega `"host":"ana"` y el `id` del calendario de esa persona
    anfitriona.
 4. Los cambios hechos en Google Calendar llegan al panel en segundos: NEXUS se suscribe a los avisos
    de Google (`events.watch`) la primera vez que se abre la agenda, y una tarea diaria los renueva.
@@ -170,14 +170,15 @@ servidor como secretos `SHELLY_AUTH_KEY` y `SHELLY_SERVER`. Después registra lo
   recarga sola.
 - **Probar en el PC:** copia `.dev.vars.example` como `.dev.vars`, ejecuta `npm run dev` y abre
   `http://localhost:8787/#token=<tu NEXUS_TOKEN de .dev.vars>`.
-- **Ver el cielo a otra hora o con otro tiempo:** añade `?cielo=21:30` y/o `?clima=sun|partly|cloudy|rain|snow`
+- **Ver el cielo a otra hora o con otro tiempo:** agrega `?cielo=21:30` y/o `?clima=sun|partly|cloudy|rain|snow`
   a la dirección del panel (solo cambia el fondo, para probar).
 - **Probar los avisos de SMHI sin esperar a una tormenta:** pon `WARN_TEST_POINT=lat,lon` en `.dev.vars`
   con un punto dentro de un aviso activo (mira el mapa en smhi.se). En local no hay Workers AI, así que el
   texto sale en inglés; en Cloudflare se traduce.
-- **Cambiar la voz:** cambia `TTS_VOICE` en `wrangler.jsonc`. Opciones: sirio, nestor, carina, celeste,
-  alvaro, diana, aquila, selena, estrella, javier.
-- **Salir al sistema en la tablet:** mantén pulsada la fecha 3 segundos.
+- **Cambiar la voz:** cambia `TTS_VOICE` en `wrangler.jsonc`. Por defecto `carina`.
+  Otras: selena, aquila (latinoamericanas), sirio, estrella, javier (mexicanas), celeste (colombiana) y nestor,
+  alvaro, diana (de España, como carina).
+- **Salir al sistema en la tablet:** mantén presionada la fecha 3 segundos.
 - **Modo noche:** de domingo a jueves desde las 22:00, y los viernes y sábados desde las 00:00. Despierta a
   las 07:00 entre semana y a las 08:00 el fin de semana. El horario está en `public/js/app.js`
   (`NIGHT_START` / `NIGHT_END`). Los botones de resumen salen en `briefingSlot()` del mismo archivo.

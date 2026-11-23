@@ -3,7 +3,7 @@
 // y WebView 140 la salida de audio de la página se desconecta a los pocos milisegundos y la voz o
 // la alarma salían a trozos. Los sonidos sintetizados (alarma, avisos) se generan antes con
 // OfflineAudioContext, que no usa la salida de audio, y se pasan como WAV.
-// En un navegador normal (PC, móvil) se usa <audio>, que funciona bien.
+// En un navegador normal (PC, celular) se usa <audio>, que funciona bien.
 (function () {
   "use strict";
 

@@ -1,5 +1,5 @@
 // NEXUS Home - agenda interactiva (se abre al tocar el panel de agenda).
-// 14 días a elegir, filtro por persona, y añadir o quitar eventos de Google Calendar.
+// 14 días a elegir, filtro por persona, y agregar o quitar eventos de Google Calendar.
 (function () {
   "use strict";
 
@@ -13,8 +13,8 @@
   let who = "all";         // filtro de persona
 
   const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
-  const fDow = new Intl.DateTimeFormat("es-ES", { weekday: "short", timeZone: "UTC" });
-  const fLong = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const fDow = new Intl.DateTimeFormat("es-CL", { weekday: "short", timeZone: "UTC" });
+  const fLong = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   const pad = (n) => String(n).padStart(2, "0");
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const addDays = (key, n) => { const d = new Date(key + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -37,7 +37,7 @@
       h("div", { class: "sheet wide ag-sheet" }, h("p", { class: "sheet-sub" }, "Cargando la agenda…")));
     document.body.append(sheet);
     try { await load(); }
-    catch { if (sheet) sheet.firstChild.replaceChildren(h("p", { class: "empty" }, "No he podido cargar la agenda.")); return; }
+    catch { if (sheet) sheet.firstChild.replaceChildren(h("p", { class: "empty" }, "No pude cargar la agenda.")); return; }
     if (sheet) render();
   }
 
@@ -76,7 +76,7 @@
             N.toast("Evento quitado");
             N.refreshAgenda();
             render();
-          } catch { del.disabled = false; N.toast("No he podido quitarlo"); }
+          } catch { del.disabled = false; N.toast("No pude quitarlo"); }
         });
       }
       return h("li", { class: "ag-row", style: `--c:${N.color(e.who)}` },
@@ -97,7 +97,7 @@
       h("div", { class: "ag-chips" }, ...chips),
       h("div", { class: "ag-dayhead" },
         h("span", {}, dLong),
-        editable().length ? h("button", { class: "btn primary", type: "button", onclick: showForm }, "+ Añadir evento") : null),
+        editable().length ? h("button", { class: "btn primary", type: "button", onclick: showForm }, "+ Agregar evento") : null),
       rows.length ? h("ul", { class: "ag-list" }, ...rows) : h("p", { class: "empty ag-empty" }, "Nada este día."));
   }
 
@@ -150,11 +150,11 @@
       if (!allDay) { body.start = `${pad(hh)}:${pad(mm)}`; body.end = `${pad(Math.floor(endMin / 60))}:${pad(endMin % 60)}`; }
       try {
         await N.api("/api/agenda/events", { method: "POST", body });
-        N.toast("Evento añadido");
+        N.toast("Evento agregado");
         N.refreshAgenda();
         await load().catch(() => {});
         if (sheet) render();
-      } catch (e) { btn.disabled = false; N.toast("No he podido guardarlo" + (e && e.message ? ": " + e.message : "")); }
+      } catch (e) { btn.disabled = false; N.toast("No pude guardarlo" + (e && e.message ? ": " + e.message : "")); }
     }
 
     const saveBtn = h("button", { class: "btn primary", type: "button" }, "Guardar");

@@ -89,8 +89,8 @@
   }
 
   // ---------- utilidades ----------
-  const fTime = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
-  const fDate = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
+  const fTime = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+  const fDate = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
   const fDow = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: TZ });
   const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
   const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -541,7 +541,7 @@
     document.body.classList.toggle("vacation", !!vac);
     if (vac) {
       const v = window.NexusHome.settings().vacation;
-      $("vac").textContent = "De vacaciones hasta el " + new Date(v.to + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+      $("vac").textContent = "De vacaciones hasta el " + new Date(v.to + "T12:00:00Z").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
     }
     document.body.classList.toggle("night", night);
     document.documentElement.classList.toggle("night", night);
@@ -589,10 +589,10 @@
   function playBriefing(slot) {
     if (!window.NexusVoice) return;
     if (slot.kind === "morning") markMorning();
-    api(slot.url).then((j) => window.NexusVoice.say(j.text)).catch(() => toast("No he podido preparar el resumen"));
+    api(slot.url).then((j) => window.NexusVoice.say(j.text)).catch(() => toast("No pude preparar el resumen"));
   }
 
-  // Gesto oculto: mantener pulsada la fecha 3 s abre los ajustes de Android
+  // Gesto oculto: mantener presionada la fecha 3 s abre los ajustes de Android
   (function systemGesture() {
     let t = null;
     const el = $("date");

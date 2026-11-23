@@ -18,7 +18,7 @@ const DEFAULTS = {
   // monthlyKr: cuota mensual fija de la compañía, con IVA (0 si no tiene)
   contracts: [{ from: "2000-01-01", ore: 8, name: "Contrato de ejemplo (configura el tuyo)", hourly: true, monthlyKr: 0 }],
   gridMonthlyKr: 0,            // cuota fija de la red al mes, con IVA (abonnemang / fast avgift ÷ 12)
-  yearKwh: 2400,               // consumo anual aproximado, para estimar hasta apuntar facturas
+  yearKwh: 2400,               // consumo anual aproximado, para estimar hasta anotar facturas
 };
 
 let current = DEFAULTS;

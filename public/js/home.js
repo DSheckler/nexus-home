@@ -168,7 +168,7 @@
     if (ai && ai.used >= ai.free * 0.7) {
       const out = ai.used >= ai.free;
       const reset = new Date(); reset.setUTCHours(24, 0, 0, 0);
-      const at = reset.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
+      const at = reset.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false });
       aiPill = (chip("warn " + (out ? "orange" : "yellow"), "warn", out ? "Sin IA hasta " + at : "IA " + Math.max(0, Math.round(100 - ai.used / ai.free * 100)) + " %",
         () => N.toast(out ? "NEXUS no puede responder con IA hasta las " + at + ". Las preguntas habituales y el resto del panel funcionan." : "La voz natural y «Oye NEXUS» se apagan solas antes de agotarla.")));
     }
@@ -192,7 +192,7 @@
     if (pp) chips.push(pp);
     const g = (data.garbage || [])[0];
     if (g && g.inDays <= 7) {
-      const day = g.inDays === 0 ? "hoy" : g.inDays === 1 ? "mañana" : "el " + new Date(g.date + "T12:00:00Z").toLocaleDateString("es-ES", { weekday: "long", timeZone: "UTC" });
+      const day = g.inDays === 0 ? "hoy" : g.inDays === 1 ? "mañana" : "el " + new Date(g.date + "T12:00:00Z").toLocaleDateString("es-CL", { weekday: "long", timeZone: "UTC" });
       chips.push(chip("garbage" + (g.inDays <= 1 ? " soon" : ""), "recycle", `Basura ${day}: ${g.type}`, null));
     }
 
@@ -240,7 +240,7 @@
     const more = notes.length - SHOW;
     const body = N.h("span", { class: "card-b rows" },
       ...(rows.length ? rows : [N.h("span", { class: "row empty-row" }, "Sin notas")]),
-      N.h("span", { class: "card-s" }, more > 0 ? `+${more} más · toca para verlas` : notes.length ? "Toca para ver o quitar" : "Se dejan desde el móvil o por voz"));
+      N.h("span", { class: "card-s" }, more > 0 ? `+${more} más · toca para verlas` : notes.length ? "Toca para ver o quitar" : "Se dejan desde el celular o por voz"));
     const c = card("notes" + (unheard ? " unheard" : ""), "Notas", body, (e) => {
       const p = e.target && e.target.closest && e.target.closest("[data-play]");
       if (p) { const n = notes.find((x) => x.id === p.dataset.play); if (n) return toggleVoice(n); }
@@ -361,7 +361,7 @@
     const hourNow = Number(p.now.h);
     if (hourNow < 7 || hourNow >= 22) return null;               // de noche no molesta
     const pct = Math.round((now / avg - 1) * 100);
-    if (pct <= -25) return chip("power-cheap", "bolt", `Luz barata ahora · ${kr(now)} kr (${pct} %)`, () => N.toast("Buen momento para la lavadora, el lavavajillas o cargar cosas."));
+    if (pct <= -25) return chip("power-cheap", "bolt", `Luz barata ahora · ${kr(now)} kr (${pct} %)`, () => N.toast("Buen momento para la lavadora, el lavaloza o cargar cosas."));
     if (pct >= 35) {
       // ¿Hasta cuándo sigue cara?
       const rest = p.hours.filter((x) => Number(x.h) > hourNow);
@@ -376,7 +376,7 @@
   }
 
   // ---------- recordatorios ----------
-  const fRemTime = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+  const fRemTime = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
   const dayKey = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Stockholm" }).format(new Date(ms));
   function reminderPills(now) {
     const today = dayKey(now);
@@ -447,7 +447,7 @@
     const form = N.h("form", { class: "chore-add" },
       N.h("div", { class: "list-add" }, name, every),
       picks.length ? N.h("div", { class: "who-row" }, N.h("span", { class: "note-meta" }, "Turnos:"), ...picks.map((p) => p.el)) : null,
-      N.h("button", { class: "btn primary", type: "submit" }, "Añadir tarea"));
+      N.h("button", { class: "btn primary", type: "submit" }, "Agregar tarea"));
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!name.value.trim()) return;
@@ -470,7 +470,7 @@
   }
   function guestButton() {
     return N.h("div", { class: "guest-box" },
-      N.h("span", { class: "note-meta" }, "¿Visita en casa? Pueden usar la lista de la compra y dejar notas desde su móvil, sin ver nada más."),
+      N.h("span", { class: "note-meta" }, "¿Visita en casa? Pueden usar la lista de compras y dejar notas desde su celular, sin ver nada más."),
       N.h("button", { class: "btn", type: "button", onclick: goFrom(openHouse, () => openGuest()) }, "Invitar con un QR"));
   }
   async function openGuest(hours = 24) {
@@ -478,10 +478,10 @@
     try {
       const [j] = await Promise.all([N.api("/api/guests", { method: "POST", body: { hours } }), loadQr()]);
       const qr = window.qrcode(0, "M"); qr.addData(j.guest.url); qr.make();
-      const until = new Date(j.guest.expires).toLocaleString("es-ES", { weekday: "long", hour: "2-digit", minute: "2-digit" });
+      const until = new Date(j.guest.expires).toLocaleString("es-CL", { weekday: "long", hour: "2-digit", minute: "2-digit" });
       if (!sheet) return;
       sheet.firstChild.replaceChildren(sheet.firstChild.firstChild,
-        N.h("p", { class: "sheet-sub" }, `Que escaneen el código con la cámara del móvil. Sirve hasta el ${until}.`),
+        N.h("p", { class: "sheet-sub" }, `Que escaneen el código con la cámara del celular. Sirve hasta el ${until}.`),
         N.h("div", { class: "qr", html: qr.createSvgTag({ cellSize: 7, margin: 2, scalable: true }) }),
         N.h("div", { class: "sheet-foot" },
           N.h("button", { class: "btn ghost", type: "button", onclick: async () => { await N.api("/api/guests/" + j.guest.id, { method: "DELETE" }).catch(() => {}); N.toast("Enlace de invitado anulado"); closeSheet(); } }, "Anular ya"),
@@ -490,7 +490,7 @@
   }
 
   // ---------- plantas ----------
-  const fDayShort = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const fDayShort = new Intl.DateTimeFormat("es-CL", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   const shortDay = (key) => fDayShort.format(new Date(key + "T12:00:00Z")).replace(/\.$/, "");
   const WEEKDAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   function plantsTile() {
@@ -537,7 +537,7 @@
         N.h("button", { class: "btn primary", type: "button", onclick: () => waterPlants(p) }, "Regadas"));
     });
     const name = N.h("input", { class: "ed-input", type: "text", maxlength: "30", placeholder: "Otro grupo (p. ej. plantas del balcón)", "aria-label": "Nombre" });
-    const form = N.h("form", { class: "list-add" }, name, N.h("button", { class: "btn", type: "submit" }, "Añadir"));
+    const form = N.h("form", { class: "list-add" }, name, N.h("button", { class: "btn", type: "submit" }, "Agregar"));
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!name.value.trim()) return;
@@ -546,7 +546,7 @@
     });
     openSheet("Plantas",
       N.h("p", { class: "sheet-sub" }, "Se riegan en días fijos. Al regarlas, toca «Regadas» (o di «Oye NEXUS, ya regué las plantas»)."),
-      rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "empty" }, "No hay plantas apuntadas."),
+      rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "empty" }, "No hay plantas anotadas."),
       form);
     sheet.dataset.kind = "plants";
   }
@@ -583,7 +583,7 @@
     }
     // Vacaciones: la víspera, la lista de antes de salir
     const v = data.settings && data.settings.vacation;
-    if (v && v.from === dayKey(Date.now() + 86400000)) out.push(chip("vacation", "flag", "Mañana os vais: lista de salida", () => openVacation()));
+    if (v && v.from === dayKey(Date.now() + 86400000)) out.push(chip("vacation", "flag", "Mañana se van: lista de salida", () => openVacation()));
     return { action: out, info };
   }
 
@@ -591,13 +591,13 @@
   const LEVEL_MEANS = {
     yellow: "Amarillo: puede causar molestias o retrasos. Hay que tener cuidado.",
     orange: "Naranja: peligroso; puede afectar mucho a la vida diaria. Mejor evitar salir si no hace falta.",
-    red: "Rojo: muy peligroso. Seguid las indicaciones de las autoridades.",
+    red: "Rojo: muy peligroso. Sigan las indicaciones de las autoridades.",
   };
   function warnTime(iso) {
     const d = new Date(iso), k = (x) => x.toLocaleDateString("en-CA", { timeZone: "Europe/Stockholm" });
-    const hm = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+    const hm = d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
     const diff = Math.round((Date.parse(k(d)) - Date.parse(k(new Date()))) / 86400000);
-    return (diff === 0 ? "hoy " : diff === 1 ? "mañana " : d.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Stockholm" }) + " ") + hm;
+    return (diff === 0 ? "hoy " : diff === 1 ? "mañana " : d.toLocaleDateString("es-CL", { weekday: "long", timeZone: "Europe/Stockholm" }) + " ") + hm;
   }
   function openWarn(w) {
     const when = (Date.parse(w.start) <= Date.now() ? "Ya ha empezado" : "Empieza " + warnTime(w.start)) + (w.end ? " · termina " + warnTime(w.end) : "");
@@ -683,7 +683,7 @@
   const ZONES = [["Chile", "America/Santiago"], ["Argentina", "America/Argentina/Buenos_Aires"], ["España", "Europe/Madrid"], ["México", "America/Mexico_City"],
     ["Colombia", "America/Bogota"], ["Perú", "America/Lima"], ["Uruguay", "America/Montevideo"], ["Venezuela", "America/Caracas"], ["Ecuador", "America/Guayaquil"],
     ["Bolivia", "America/La_Paz"], ["Paraguay", "America/Asuncion"], ["Brasil", "America/Sao_Paulo"], ["Cuba", "America/Havana"], ["Nueva York", "America/New_York"], ["Londres", "Europe/London"]];
-  const timeIn = (tz) => new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
+  const timeIn = (tz) => new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
   const hourIn = (tz) => Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: tz }).format(new Date()));
   function renderAbroad() {
     const box = $("abroad");
@@ -703,7 +703,7 @@
         N.h("button", { class: "btn ghost note-del", type: "button", onclick: () => { list.splice(i, 1); save(); } }, "Quitar")));
       const name = N.h("input", { class: "ed-input", type: "text", maxlength: "24", placeholder: "Nombre (p. ej. Abuelos)", "aria-label": "Nombre" });
       const zone = N.h("select", { class: "ed-input pw-sel", "aria-label": "País" }, ...ZONES.map(([n, tz]) => N.h("option", { value: tz }, n)));
-      const form = N.h("form", { class: "list-add" }, name, zone, N.h("button", { class: "btn", type: "submit" }, "Añadir"));
+      const form = N.h("form", { class: "list-add" }, name, zone, N.h("button", { class: "btn", type: "submit" }, "Agregar"));
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         const label = name.value.trim() || ZONES.find(([, tz]) => tz === zone.value)[0];
@@ -722,7 +722,7 @@
   }
 
   // ---------- vacaciones ----------
-  const CHECKLIST = ["Regar las plantas (o pedir a alguien que lo haga)", "Sacar la basura y el reciclaje", "Vaciar la nevera de lo que caduca", "Cerrar ventanas y bajar la calefacción", "Desenchufar lo que no haga falta", "Avisar a un vecino de confianza", "Llevar cargadores, pasaportes y documentos"];
+  const CHECKLIST = ["Regar las plantas (o pedir a alguien que lo haga)", "Sacar la basura y el reciclaje", "Vaciar el refrigerador de lo que caduca", "Cerrar ventanas y bajar la calefacción", "Desenchufar lo que no haga falta", "Avisar a un vecino de confianza", "Llevar cargadores, pasaportes y documentos"];
   const vacationActive = () => {
     const v = data && data.settings && data.settings.vacation;
     const t = dayKey(Date.now());
@@ -740,7 +740,7 @@
       return N.h("li", { class: "vac-item" }, N.h("label", {}, cb, " " + t));
     });
     openSheet("Vacaciones",
-      N.h("p", { class: "sheet-sub" }, "Mientras estéis fuera, el panel queda atenuado, las alarmas no suenan y no hay resúmenes hablados."),
+      N.h("p", { class: "sheet-sub" }, "Mientras estén fuera, el panel queda atenuado, las alarmas no suenan y no hay resúmenes hablados."),
       N.h("div", { class: "list-add" }, N.h("span", { class: "note-meta" }, "Ida"), from, N.h("span", { class: "note-meta" }, "Vuelta"), to),
       N.h("h3", { class: "pw-h" }, "Antes de salir"),
       N.h("ul", { class: "vac-list" }, ...items),
@@ -783,11 +783,11 @@
   }
   function closeSheet() { if (sheet) sheet.remove(); sheet = null; sheetBack = null; sheetTitle = null; }
 
-  // Lista de la compra
+  // Lista de compras
   function openList() {
     const items = data && data.shopping ? data.shopping : [];
-    const input = N.h("input", { class: "ed-input", type: "text", maxlength: "60", placeholder: "Añadir artículo…", "aria-label": "Artículo" });
-    const form = N.h("form", { class: "list-add" }, input, N.h("button", { class: "btn primary", type: "submit" }, "Añadir"));
+    const input = N.h("input", { class: "ed-input", type: "text", maxlength: "60", placeholder: "Agregar artículo…", "aria-label": "Artículo" });
+    const form = N.h("form", { class: "list-add" }, input, N.h("button", { class: "btn primary", type: "submit" }, "Agregar"));
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!input.value.trim()) return;
@@ -799,8 +799,8 @@
         const j = await N.api("/api/shopping/" + i.id, { method: "PATCH", body: { done: !i.done } }).catch(() => null);
         if (j) { data.shopping = j.items; render(); openList(); }
       } }, N.h("span", { class: "check", "aria-hidden": "true" }), i.text)));
-    openSheet("Lista de la compra",
-      N.h("p", { class: "sheet-sub" }, "También por voz: «Oye NEXUS, añade café a la lista»."),
+    openSheet("Lista de compras",
+      N.h("p", { class: "sheet-sub" }, "También por voz: «Oye NEXUS, agrega café a la lista»."),
       rows.length ? N.h("ul", { class: "shop-list" }, ...rows) : N.h("p", { class: "empty" }, "La lista está vacía."),
       form,
       N.h("div", { class: "sheet-foot" },
@@ -831,15 +831,15 @@
     });
     openSheet("Notas",
       N.h("p", { class: "sheet-sub" }, "Una nota de voz se puede escuchar 2 veces y luego se borra sola."),
-      rows.length ? N.h("ul", { class: "note-list" }, ...rows) : N.h("p", { class: "empty" }, "No hay notas. Se dejan desde el móvil o por voz: «Oye NEXUS, deja una nota para Ana: …»."));
+      rows.length ? N.h("ul", { class: "note-list" }, ...rows) : N.h("p", { class: "empty" }, "No hay notas. Se dejan desde el celular o por voz: «Oye NEXUS, deja una nota para Ana: …»."));
     sheet.dataset.kind = "notes";
   }
   function refreshNotesSheet() {
     if (sheet && sheet.dataset.kind === "notes") openNotes();
   }
 
-  // Luz: precio de ahora, gasto del mes (estimado) y meses apuntados con la factura
-  const kr0 = (v) => Math.round(v).toLocaleString("es-ES");
+  // Luz: precio de ahora, gasto del mes (estimado) y meses anotados con la factura
+  const kr0 = (v) => Math.round(v).toLocaleString("es-CL");
   function openPower() {
     const p = data && data.power;
     const pm = data && data.powerMonth;
@@ -855,9 +855,9 @@
         N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.kr) + " kr"), N.h("span", { class: "pw-l" }, `${c.label.split(" ")[0]} hasta hoy · ~${c.kwh} kWh`)),
         N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.forecastKr) + " kr"), N.h("span", { class: "pw-l" }, `previsión del mes · ~${c.forecastKwh} kWh`))),
         N.h("p", { class: "pw-note" }, `Estimado con ${c.basis} y el precio real de cada hora. Incluye red, impuesto e IVA` + (c.hasGridFee ? ", y la cuota fija de la red." : " (falta la cuota fija de la red).")));
-      if (c.why) body.push(N.h("p", { class: "pw-why" }, c.why + " Por eso sube o baja la factura aunque gastéis lo mismo."));
+      if (c.why) body.push(N.h("p", { class: "pw-why" }, c.why + " Por eso sube o baja la factura aunque gasten lo mismo."));
       if (c.compare) body.push(N.h("p", { class: "pw-cmp " + (c.compare.savedForecastKr >= 0 ? "good" : "bad") },
-        `Con ${c.compare.name} este mes saldría por ~${kr0(c.compare.forecastKr)} kr: ` + (c.compare.savedForecastKr >= 0 ? `con ${c.compare.current} ahorráis ~${kr0(c.compare.savedForecastKr)} kr.` : `con ${c.compare.current} pagáis ~${kr0(-c.compare.savedForecastKr)} kr más.`)));
+        `Con ${c.compare.name} este mes saldría por ~${kr0(c.compare.forecastKr)} kr: ` + (c.compare.savedForecastKr >= 0 ? `con ${c.compare.current} ahorran ~${kr0(c.compare.savedForecastKr)} kr.` : `con ${c.compare.current} pagan ~${kr0(-c.compare.savedForecastKr)} kr más.`)));
     }
     const rows = ((pm && pm.past) || []).map((r) => N.h("li", { class: "note-row" },
       N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, r.label.charAt(0).toUpperCase() + r.label.slice(1)),
@@ -868,9 +868,9 @@
         if (j) { data.powerMonth = j; lastKey = ""; render(); openPower(); }
       } }, "Quitar")));
     body.push(N.h("h3", { class: "pw-h" }, "Meses con factura"));
-    body.push(rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "pw-note" }, "Aún no hay ninguno. Cuando llegue la factura, apunta los kWh del mes: el cálculo queda exacto y la estimación de los meses siguientes mejora."));
+    body.push(rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "pw-note" }, "Aún no hay ninguno. Cuando llegue la factura, anota los kWh del mes: el cálculo queda exacto y la estimación de los meses siguientes mejora."));
 
-    // Apuntar los kWh de un mes ya terminado (los últimos 3)
+    // Anotar los kWh de un mes ya terminado (los últimos 3)
     const months = [];
     const d = new Date(); d.setDate(1);
     for (let i = 0; i < 3; i++) { d.setMonth(d.getMonth() - 1); months.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); }
@@ -903,7 +903,7 @@
     closeSheet();
     if (window.NexusAndroid && window.NexusAndroid.openApp) {
       const ok = window.NexusAndroid.openApp(a.pkg, a.url(query || ""));
-      if (ok) { N.toast("Pulsa el botón de inicio para volver a NEXUS"); return; }
+      if (ok) { N.toast("Presiona el botón de inicio para volver a NEXUS"); return; }
     }
     N.toast(app === "spotify" ? "Spotify no está disponible en este dispositivo" : "YouTube no está disponible en este dispositivo");
   }
@@ -966,7 +966,7 @@
       sheet.firstChild.replaceChildren(sheet.firstChild.firstChild, ...body, houseExtras(), guestButton());
       return;
     }
-    if (!j) body.push(N.h("p", { class: "empty" }, "No he podido consultar los dispositivos."));
+    if (!j) body.push(N.h("p", { class: "empty" }, "No pude consultar los dispositivos."));
     else if (!j.configured || !j.devices.length) {
       body.push(N.h("p", { class: "sheet-sub" }, "Aún no hay dispositivos conectados."),
         N.h("p", { class: "empty" }, "Cuando tengas enchufes o luces Shelly en la app Shelly, NEXUS podrá encenderlos y apagarlos desde aquí y por voz («Oye NEXUS, apaga la lámpara del salón»)."));

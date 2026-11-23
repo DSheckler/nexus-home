@@ -26,7 +26,7 @@ async function lifeLines(env, { when }) {
     if (s && s.bring && s.bring.length) out.push(`Para mañana, ${school.name || "el colegio"} tiene que llevar: ${s.bring.join(", ")}.`);
     if (menu && menu[1] && menu[1].meal) out.push(`Mañana toca cenar ${menu[1].meal}.`);
     for (const p of plants || []) if (!p.pending && p.dueIn === 1) out.push(`Mañana toca regar ${L.plantPhrase(p.name)}.`);
-    if (aurora && aurora.chance) out.push(aurora.chance === "alta" ? `Esta noche hay buenas opciones de ver auroras hacia las ${aurora.when}: mirad al norte.` : `Esta noche quizá se vean auroras bajas hacia el norte.`);
+    if (aurora && aurora.chance) out.push(aurora.chance === "alta" ? `Esta noche hay buenas opciones de ver auroras hacia las ${aurora.when}: miren al norte.` : `Esta noche quizá se vean auroras bajas hacia el norte.`);
     return out;
   }
   for (const h of season.filter((x) => x.kind === "holiday" && x.inDays === 0)) out.push(`Hoy es ${h.text}.`);
@@ -46,7 +46,7 @@ async function lifeLines(env, { when }) {
 
 const TZ = "Europe/Stockholm";
 const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
-const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+const fHour = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
 
 // ---------- Electricidad (elprisetjustnu.se, gratis, sin clave) ----------
 let powerCache = { at: 0, key: "", data: null };
@@ -147,14 +147,14 @@ export const LEVEL_ES = { yellow: "amarillo", orange: "naranja", red: "rojo" };
 // Traduce al español la descripción de un aviso (una vez por versión publicada; se guarda en KV).
 // Modelo pequeño: unas 20 neuronas por aviso. Si falla, queda el texto en inglés.
 async function warnSpanish(env, id, src) {
-  const key = "smhiaviso:es:" + id;
+  const key = "smhiaviso:cl:" + id;
   const cached = env && (await env.NEXUS_KV.get(key, "json").catch(() => null));
   if (cached) return cached;
   if (!env || !env.AI) return null;
   const model = "@cf/openai/gpt-oss-20b";
   const r = await env.AI.run(model, {
     messages: [
-      { role: "system", content: "Traduces avisos meteorológicos oficiales de SMHI al español de España, claro y breve, para una familia. Responde solo con JSON: {\"happens\": string, \"affect\": [string]}. happens: qué va a pasar (1-2 frases). affect: 2 a 4 frases cortas con lo que dice el original sobre qué tener en cuenta, sin añadir consejos propios. Los lugares, con su nombre sueco (p. ej. Bottenhavet, Vänern, Västra Götaland)." },
+      { role: "system", content: "Traduces avisos meteorológicos oficiales de SMHI al español neutro de Chile (sin vosotros: usa ustedes), claro y breve, para una familia. Responde solo con JSON: {\"happens\": string, \"affect\": [string]}. happens: qué va a pasar (1-2 frases). affect: 2 a 4 frases cortas con lo que dice el original sobre qué tener en cuenta, sin agregar consejos propios. Los lugares, con su nombre sueco (p. ej. Bottenhavet, Vänern, Västra Götaland)." },
       { role: "user", content: JSON.stringify(src) + "\nNombres suecos de los lugares, por si aparecen: " + (src.sv || "") },
     ],
     reasoning: { effort: "low" },
@@ -270,7 +270,7 @@ function recommendations(w, detail, power) {
   if (w && w.today.sunrise) out.push(`Hoy hay luz de ${w.today.sunrise} a ${w.today.sunset}.`);
   if (power && power.cheapestRest) {
     out.push(power.hourlyContract
-      ? `Si vas a poner la lavadora o el lavavajillas, la luz más barata hoy será a las ${power.cheapestRest.h}:00, a ${String(power.real.cheapestRest.sek).replace(".", ",")} coronas el kilovatio hora.`
+      ? `Si vas a poner la lavadora o el lavaloza, la luz más barata hoy será a las ${power.cheapestRest.h}:00, a ${String(power.real.cheapestRest.sek).replace(".", ",")} coronas el kilovatio hora.`
       : `La luz más barata de hoy será a las ${power.cheapestRest.h}:00.`);
   }
   out.push("Que tengan un buen día.");
@@ -435,7 +435,7 @@ export async function runRoutine(env, name) {
     const nowHHMM = fHour.format(new Date());
     const ev = agenda && agenda.today && agenda.today.filter((e) => !e.allDay && e.start > nowHHMM)[0];
     if (ev) parts.push(`Recuerda: ${ev.title} a las ${ev.start}.`);
-    if (lights) parts.push("He apagado las luces.");
+    if (lights) parts.push("Apagué las luces.");
     return { reply: parts.join(" "), end: true };
   }
   if (name === "llegar") {
@@ -446,8 +446,8 @@ export async function runRoutine(env, name) {
     const parts = ["Bienvenidos a casa."];
     if (notes && notes.length) parts.push(notes.length === 1 ? `Hay una nota para ${notes[0].to}: ${notes[0].text}.` : `Hay ${notes.length} notas en el panel.`);
     const pending = (shopping || []).filter((i) => !i.done);
-    if (pending.length) parts.push(`En la lista de la compra hay ${pending.length} ${pending.length === 1 ? "cosa" : "cosas"}.`);
-    if (lights) parts.push("He encendido las luces.");
+    if (pending.length) parts.push(`En la lista de compras hay ${pending.length} ${pending.length === 1 ? "cosa" : "cosas"}.`);
+    if (lights) parts.push("Encendí las luces.");
     return { reply: parts.join(" "), end: true };
   }
   if (name === "dormir") {
@@ -458,7 +458,7 @@ export async function runRoutine(env, name) {
     const parts = ["Buenas noches."];
     if (alarm) parts.push(alarm);
     if (tmr) parts.push(`Mañana: ${tmr.title}.`);
-    if (lights) parts.push("He apagado las luces.");
+    if (lights) parts.push("Apagué las luces.");
     parts.push("Que descansen.");
     return { reply: parts.join(" "), end: true, home: true };
   }

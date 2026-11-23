@@ -22,7 +22,7 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.21.1";
+const VERSION = "1.22.0";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -150,7 +150,7 @@ function safeEqual(a, b) {
 }
 
 // Dos claves: la de la tablet (acceso completo) y la familiar (solo compra y notas,
-// para los móviles). Si se pierde un móvil, basta con cambiar la familiar.
+// para los celulares). Si se pierde un celular, basta con cambiar la familiar.
 async function scopeOf(request, env) {
   let key = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   // WebSocket: el navegador no permite cabeceras, la clave va como subprotocolo ("nexus", clave)
@@ -163,10 +163,10 @@ async function scopeOf(request, env) {
   return null;
 }
 const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor|warnings)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?)$/i;
-// Invitados: solo la lista de la compra y las notas de texto
+// Invitados: solo la lista de compras y las notas de texto
 const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
-// El asistente cambió algo de la casa: los móviles reciben la lista y las notas al momento
+// El asistente cambió algo de la casa: los celulares reciben la lista y las notas al momento
 function pushHome(env, ctx) {
   const p = Promise.all([H.listShopping(env), H.listNotes(env)]).then(([items, notes]) => Promise.all([
     notify(env, null, { type: "shopping", items }, ["family", "guest"]),
@@ -393,7 +393,7 @@ async function handleApi(request, env, url, ctx) {
     return env.HUB.get(env.HUB.idFromName("casa")).fetch(new Request("https://hub/?scope=" + scope, request));
   }
 
-  // Lista de la compra (cada cambio se avisa al momento a las pantallas)
+  // Lista de compras (cada cambio se avisa al momento a las pantallas)
   const shopDone = (items, status = 200) => { notify(env, ctx, { type: "shopping", items }); return json({ ok: true, items }, status); };
   if (path === "/api/shopping") {
     if (method === "GET") return json({ ok: true, items: await H.listShopping(env) });

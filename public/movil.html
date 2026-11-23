@@ -179,8 +179,8 @@
   </header>
 
   <div id="unpaired" class="msg hidden">
-    Este móvil no está vinculado.<br>Abre en Safari el enlace que te pasaron y, desde esa página, usa
-    «Compartir → Añadir a pantalla de inicio».<br><br>O pega aquí el enlace o el código:
+    Este celular no está vinculado.<br>Abre en Safari el enlace que te pasaron y, desde esa página, usa
+    «Compartir → Agregar a pantalla de inicio».<br><br>O pega aquí el enlace o el código:
     <form id="pairForm">
       <input id="pairCode" type="text" placeholder="Enlace o código" aria-label="Enlace o código" autocapitalize="off" autocorrect="off">
       <button class="btn" type="submit">Vincular</button>
@@ -201,8 +201,8 @@
     <section id="shop">
       <div class="panel"><ul id="shopList"></ul></div>
       <form id="shopForm">
-        <input id="shopInput" type="text" maxlength="60" placeholder="Añadir a la lista…" aria-label="Artículo" enterkeyhint="done">
-        <button class="btn" type="submit">Añadir</button>
+        <input id="shopInput" type="text" maxlength="60" placeholder="Agregar a la lista…" aria-label="Artículo" enterkeyhint="done">
+        <button class="btn" type="submit">Agregar</button>
       </form>
       <button class="link" id="clearDone" type="button">Quitar los comprados</button>
     </section>
@@ -237,7 +237,7 @@
             <option value="7" selected>Cada semana</option><option value="14">Cada 2 semanas</option><option value="30">Cada mes</option>
           </select>
         </div>
-        <button class="btn" type="submit">Añadir tarea</button>
+        <button class="btn" type="submit">Agregar tarea</button>
       </form>
       <p class="pw-note">Los turnos entre personas se eligen en el panel. Al marcarla hecha, pasa al siguiente.</p>
     </section>
@@ -266,11 +266,11 @@
           <input id="abName" type="text" maxlength="24" placeholder="Nombre" aria-label="Nombre">
           <select id="abZone" aria-label="País"></select>
         </div>
-        <button class="ghost-btn" id="abAdd" type="button" style="width:100%">Añadir</button>
+        <button class="ghost-btn" id="abAdd" type="button" style="width:100%">Agregar</button>
       </div>
       <div class="h-sec">
         <h2>Vacaciones</h2>
-        <p class="meta2" id="vacState">El panel se atenúa, las alarmas no suenan y no hay resúmenes mientras estéis fuera.</p>
+        <p class="meta2" id="vacState">El panel se atenúa, las alarmas no suenan y no hay resúmenes mientras estén fuera.</p>
         <div class="two">
           <label>Ida<input id="vacFrom" type="date" style="width:100%"></label>
           <label>Vuelta<input id="vacTo" type="date" style="width:100%"></label>
@@ -294,7 +294,7 @@
         <div class="pw-card"><div class="pw-v" id="pwFc">–</div><div class="pw-l" id="pwFcL">previsión del mes</div></div>
       </div>
       <p class="pw-note" id="pwBasis"></p>
-      <p class="pw-h">Apuntar la factura</p>
+      <p class="pw-h">Anotar la factura</p>
       <form id="pwForm" class="note-form">
         <div class="row">
           <select id="pwMonth" aria-label="Mes"></select>
@@ -338,7 +338,7 @@
       if (!m) history.replaceState(null, "", location.pathname + "#k=" + key); // el icono siempre lleva su clave
       $("app").classList.remove("hidden");
 
-      // Quién usa este móvil (para firmar las notas)
+      // Quién usa este celular (para firmar las notas)
       let PEOPLE = [];
       function renderWho() { $("who").textContent = store.get("who") ? "Soy " + store.get("who") : "¿Quién eres?"; }
       $("who").addEventListener("click", () => {
@@ -517,7 +517,7 @@
 
       // ---------- Luz: gasto del mes y kWh de la factura ----------
       const MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-      const krf = (v) => "~" + Math.round(v).toLocaleString("es-ES") + " kr";
+      const krf = (v) => "~" + Math.round(v).toLocaleString("es-CL") + " kr";
       (function months() {
         const d = new Date(); d.setDate(1);
         for (let i = 0; i < 3; i++) {
@@ -560,7 +560,7 @@
       });
 
       // ---------- Menú de la semana ----------
-      const fMenuDay = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+      const fMenuDay = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
       function renderMenu(list) {
         const ul = $("menuList"); ul.replaceChildren();
         list.forEach((d, i) => {
@@ -584,12 +584,12 @@
       });
 
       // ---------- Casa: plantas, luces, colegio, familia lejos y vacaciones ----------
-      const fShortDay = new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+      const fShortDay = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
       const niceDay = (k) => fShortDay.format(new Date(k + "T12:00:00Z"));
       const flash = (t) => { $("status").textContent = t; setTimeout(() => ($("status").textContent = ""), 3000); };
       function renderPlants(list) {
         const box = $("hPlants"); box.replaceChildren();
-        if (!list.length) { box.append(el("p", "meta2", "No hay plantas apuntadas (se añaden desde el panel).")); return; }
+        if (!list.length) { box.append(el("p", "meta2", "No hay plantas anotadas (se agregan desde el panel).")); return; }
         for (const p of list) {
           const row = el("div", "h-row");
           const txt = el("span", "grow", p.name);
@@ -601,7 +601,7 @@
       }
       function renderDevices(j) {
         const box = $("hDevices"); box.replaceChildren();
-        if (!j || !j.configured || !j.devices || !j.devices.length) { box.append(el("p", "meta2", "Aún no hay dispositivos. Cuando tengáis luces o enchufes Shelly, se controlan desde aquí.")); return; }
+        if (!j || !j.configured || !j.devices || !j.devices.length) { box.append(el("p", "meta2", "Aún no hay dispositivos. Cuando tengan luces o enchufes Shelly, se controlan desde aquí.")); return; }
         for (const d of j.devices) {
           const row = el("div", "h-row");
           const txt = el("span", "grow", d.name);
@@ -640,7 +640,7 @@
         ["Bolivia", "America/La_Paz"], ["Paraguay", "America/Asuncion"], ["Brasil", "America/Sao_Paulo"], ["Cuba", "America/Havana"], ["Nueva York", "America/New_York"], ["Londres", "Europe/London"]];
       for (const [n, tz] of ZONES) $("abZone").append(new Option(n, tz));
       let abroad = [];
-      const timeIn = (tz) => new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
+      const timeIn = (tz) => new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz }).format(new Date());
       function renderAbroad(list) {
         abroad = list;
         const box = $("hAbroad"); box.replaceChildren();
@@ -664,7 +664,7 @@
       });
       function renderVacation(v) {
         $("vacFrom").value = v ? v.from : ""; $("vacTo").value = v ? v.to : "";
-        $("vacState").textContent = v ? `De vacaciones del ${niceDay(v.from)} al ${niceDay(v.to)}.` : "El panel se atenúa, las alarmas no suenan y no hay resúmenes mientras estéis fuera.";
+        $("vacState").textContent = v ? `De vacaciones del ${niceDay(v.from)} al ${niceDay(v.to)}.` : "El panel se atenúa, las alarmas no suenan y no hay resúmenes mientras estén fuera.";
         $("vacOff").disabled = !v;
       }
       $("vacSave").addEventListener("click", async () => {
@@ -706,7 +706,7 @@
         const name = $("choreName").value.trim();
         if (!name) return;
         try { const j = await api("/api/chores", { method: "POST", body: { name, every: Number($("choreEvery").value) } }); renderChores(j.chores); $("choreName").value = ""; }
-        catch (err) { $("status").textContent = err.message || "No se pudo añadir"; }
+        catch (err) { $("status").textContent = err.message || "No se pudo agregar"; }
       });
 
       // ---------- Invitar: enlace temporal para una visita ----------
@@ -714,14 +714,14 @@
         try {
           const j = await api("/api/guests", { method: "POST", body: { hours: 24 } });
           const url = j.guest.url;
-          if (navigator.share) { await navigator.share({ title: "NEXUS · lista de la compra", text: "Lista de la compra y notas de casa (válido 24 h)", url }).catch(() => {}); }
+          if (navigator.share) { await navigator.share({ title: "NEXUS · lista de compras", text: "Lista de compras y notas de casa (válido 24 h)", url }).catch(() => {}); }
           else if (navigator.clipboard) { await navigator.clipboard.writeText(url); $("status").textContent = "Enlace copiado: válido 24 horas"; }
           else prompt("Enlace de invitado (24 h):", url);
         } catch (err) { $("status").textContent = err.message || "No se pudo crear el enlace"; }
       });
 
       // ---------- Cumpleaños desde un archivo de Contactos (vCard) ----------
-      // El archivo se lee en el propio móvil: al servidor solo van los nombres y las fechas.
+      // El archivo se lee en el propio celular: al servidor solo van los nombres y las fechas.
       function birthdaysFromVcf(text) {
         const lines = text.replace(/\r?\n[ \t]/g, "").split(/\r?\n/); // líneas "dobladas" del formato vCard
         const out = [];
@@ -781,9 +781,9 @@
       const LEVEL_ES = { yellow: "amarillo", orange: "naranja", red: "rojo" };
       function wTime(iso) {
         const d = new Date(iso), k = (x) => x.toLocaleDateString("en-CA", { timeZone: "Europe/Stockholm" });
-        const hm = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+        const hm = d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
         const diff = Math.round((Date.parse(k(d)) - Date.parse(k(new Date()))) / 86400000);
-        return (diff === 0 ? "hoy " : diff === 1 ? "mañana " : d.toLocaleDateString("es-ES", { weekday: "long", timeZone: "Europe/Stockholm" }) + " ") + hm;
+        return (diff === 0 ? "hoy " : diff === 1 ? "mañana " : d.toLocaleDateString("es-CL", { weekday: "long", timeZone: "Europe/Stockholm" }) + " ") + hm;
       }
       async function loadWarns() {
         let list;
@@ -817,7 +817,7 @@
         if (c.scope === "guest") {
           for (const id of ["tabChores", "tabPower", "tabMenu", "tabHouse", "recBtn", "recHint"]) $(id).classList.add("hidden");
           if (["chores", "power", "menu", "house"].includes(store.get("tab"))) tab("shop");
-          const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de la compra y dejar notas.");
+          const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de compras y dejar notas.");
           $("app").prepend(note);
         }
         PEOPLE = c.family || [];

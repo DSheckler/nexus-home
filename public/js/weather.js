@@ -25,7 +25,7 @@
     sheet = h("div", { class: "sheet-wrap", onclick: (e) => { if (e.target === sheet) close(); } },
       h("div", { class: "sheet wide wx-sheet" }, h("p", { class: "sheet-sub" }, "Cargando el tiempo…")));
     document.body.append(sheet);
-    try { await load(); } catch { sheet.firstChild.replaceChildren(h("p", { class: "empty" }, "No he podido cargar el pronóstico.")); return; }
+    try { await load(); } catch { sheet.firstChild.replaceChildren(h("p", { class: "empty" }, "No pude cargar el pronóstico.")); return; }
     if (sheet) render(dayIndex);
   }
 

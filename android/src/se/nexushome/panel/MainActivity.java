@@ -181,7 +181,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() {
-            return "1.5";
+            return "1.6";
         }
 
         // ---------- Sonido con el reproductor nativo ----------
@@ -245,8 +245,12 @@ public class MainActivity extends Activity {
             if (tts != null) return;
             tts = new android.speech.tts.TextToSpeech(MainActivity.this, status -> {
                 if (status != android.speech.tts.TextToSpeech.SUCCESS) return;
-                java.util.Locale es = new java.util.Locale("es", "ES");
-                int r = tts.setLanguage(es);
+                // Español de Latinoamérica (Chile o EE. UU.); el de España solo si no hay otro
+                int r = android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED;
+                for (String[] l : new String[][] { { "es", "CL" }, { "es", "US" }, { "es", "MX" }, { "es", "ES" } }) {
+                    r = tts.setLanguage(new java.util.Locale(l[0], l[1]));
+                    if (r >= android.speech.tts.TextToSpeech.LANG_AVAILABLE) break;
+                }
                 ttsReady = r != android.speech.tts.TextToSpeech.LANG_MISSING_DATA && r != android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED;
                 tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
                     @Override public void onStart(String id) { }

@@ -9,9 +9,9 @@ import { powerMonth } from "./consumption.js";
 import * as L from "./life.js";
 
 const TZ = "Europe/Stockholm";
-const fDay = new Intl.DateTimeFormat("es-ES", { weekday: "long", timeZone: "UTC" });
-const fDayTZ = new Intl.DateTimeFormat("es-ES", { weekday: "long", timeZone: TZ });
-const fHour = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+const fDay = new Intl.DateTimeFormat("es-CL", { weekday: "long", timeZone: "UTC" });
+const fDayTZ = new Intl.DateTimeFormat("es-CL", { weekday: "long", timeZone: TZ });
+const fHour = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
 const dayName = (key) => fDay.format(new Date(key + "T12:00:00Z"));
 
 export async function getWeeklyBriefing(env) {
@@ -57,7 +57,7 @@ export async function getWeeklyBriefing(env) {
   const [plants, menu] = await Promise.all([safe(L.listPlants(env)), safe(L.getMenu(env, 8))]);
   for (const p of plants || []) if (p.pending || p.dueIn <= 7) parts.push(p.pending ? `Hay que regar ${L.plantPhrase(p.name)} cuanto antes.` : `El ${dayName(p.due)} toca regar ${L.plantPhrase(p.name)}.`);
   const planned = (menu || []).slice(1).filter((d) => d.meal).length;
-  parts.push(planned ? `El menú tiene ${planned} de los próximos 7 días planificados.` : "El menú de la semana está vacío: podéis planificarlo en el panel o pedírmelo.");
+  parts.push(planned ? `El menú tiene ${planned} de los próximos 7 días planificados.` : "El menú de la semana está vacío: pueden planificarlo en el panel o pedírmelo.");
   for (const n of L.seasonNotices(7)) {
     if (n.kind === "holiday" && n.inDays >= 1) parts.push(`El ${dayName(n.date)} es ${n.text}.`);
     if (n.kind === "tip") parts.push(n.text + ".");

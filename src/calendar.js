@@ -11,8 +11,8 @@ const DAYS_AHEAD = 14;
 const CACHE_MS = 60 * 1000;
 
 const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
-const fTime = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
-const fShort = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", timeZone: TZ });
+const fTime = new Intl.DateTimeFormat("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+const fShort = new Intl.DateTimeFormat("es-CL", { weekday: "short", day: "numeric", timeZone: TZ });
 
 let cache = { at: 0, data: null, ver: "" };
 
@@ -31,7 +31,7 @@ function whenLabel(dateKey, todayKey) {
 
 // Personas sin cuenta de Google (p. ej. un niño): config con "host": sus eventos
 // se guardan en el calendario de otra persona, marcados con una propiedad privada
-// y con su nombre delante del título ("Sofía · Dentista") para verlo en el móvil.
+// y con su nombre delante del título ("Sofía · Dentista") para verlo en el celular.
 const realCals = (cals) => cals.filter((c) => !c.host);
 
 function guestOf(e, cal, cals) {
@@ -70,7 +70,7 @@ function normalize(e, cal, cals = []) {
   };
 }
 
-// Cumpleaños y fechas guardados en NEXUS (no en Google) se añaden a "Próximos días"
+// Cumpleaños y fechas guardados en NEXUS (no en Google) se agregan a "Próximos días"
 export async function getAgenda(env) {
   const base = await getAgendaBase(env);
   const dates = await upcomingDates(env, DAYS_AHEAD).catch(() => []);

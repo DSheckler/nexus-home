@@ -96,7 +96,7 @@ export async function setMenu(env, date, { meal, ingredients }) {
   return getMenu(env);
 }
 
-// Ingredientes del menú (entre dos fechas) que aún no están en la lista de la compra
+// Ingredientes del menú (entre dos fechas) que aún no están en la lista de compras
 export async function menuIngredients(env, from, to) {
   const all = await getJSON(env, "menu", {});
   const a = isDate(from) ? from : todayKey(), b = isDate(to) ? to : addDays(a, 6);
@@ -150,7 +150,7 @@ export async function setAbroad(env, list) {
   const out = (Array.isArray(list) ? list : []).slice(0, 3).map((x) => ({ name: clip(x.name, 24), tz: clip(x.tz, 40) }))
     .filter((x) => x.name && x.tz);
   for (const x of out) {
-    try { new Intl.DateTimeFormat("es-ES", { timeZone: x.tz }); } catch { throw new Error("Zona horaria no válida: " + x.tz); }
+    try { new Intl.DateTimeFormat("es-CL", { timeZone: x.tz }); } catch { throw new Error("Zona horaria no válida: " + x.tz); }
   }
   await putJSON(env, "abroad", out);
   return out;
@@ -227,7 +227,7 @@ export function seasonNotices(days = 7) {
     "Obligatorios del 1 de diciembre al 31 de marzo cuando hay condiciones invernales: nieve, hielo, escarcha o agua helada en la calzada.",
     "Profundidad mínima del dibujo en invierno: 3 mm.",
     "Los de clavos se pueden llevar del 1 de octubre al 15 de abril (fuera de esas fechas, solo si hay condiciones invernales).",
-    "Pedid hora en el taller con tiempo: a finales de noviembre se llenan.",
+    "Pidan hora en el taller con tiempo: a finales de noviembre se llenan.",
   ]);
   tip("sommardack", `${y}-03-29`, `${y}-04-15`, "Neumáticos de verano: desde el 1 de abril; los de clavos, quitarlos antes del 16 de abril", `${y}-04-15`, [
     "Desde el 1 de abril ya no es obligatorio llevar neumáticos de invierno.",
@@ -235,14 +235,14 @@ export function seasonNotices(days = 7) {
     "Los de invierno sin clavos se pueden seguir usando, pero en verano frenan peor y se gastan antes.",
     "Profundidad mínima del dibujo en verano: 1,6 mm.",
   ]);
-  tip("brandvarnare", `${y}-11-28`, `${y}-12-01`, "1 de diciembre, día del detector de humo: pulsad el botón de prueba de cada detector", `${y}-12-01`, [
-    "Pulsad el botón de prueba de cada detector hasta que suene.",
-    "Si no suena o suena débil, cambiad la pila (o el detector si tiene más de 10 años).",
+  tip("brandvarnare", `${y}-11-28`, `${y}-12-01`, "1 de diciembre, día del detector de humo: presionen el botón de prueba de cada detector", `${y}-12-01`, [
+    "Presionen el botón de prueba de cada detector hasta que suene.",
+    "Si no suena o suena débil, cambien la pila (o el detector si tiene más de 10 años).",
     "Lo ideal es un detector en cada planta y cerca de los dormitorios.",
   ]);
   for (const [m, text, info] of [
-    [3, "Este domingo se adelanta la hora (de 2:00 a 3:00): se duerme una hora menos", ["La madrugada del domingo, a las 2:00 pasan a ser las 3:00.", "La tablet y los móviles cambian solos; los relojes del horno o del coche, no."]],
-    [10, "Este domingo se atrasa la hora (de 3:00 a 2:00): una hora más de sueño", ["La madrugada del domingo, a las 3:00 vuelven a ser las 2:00.", "La tablet y los móviles cambian solos; los relojes del horno o del coche, no."]],
+    [3, "Este domingo se adelanta la hora (de 2:00 a 3:00): se duerme una hora menos", ["La madrugada del domingo, a las 2:00 pasan a ser las 3:00.", "La tablet y los celulares cambian solos; los relojes del horno o del auto, no."]],
+    [10, "Este domingo se atrasa la hora (de 3:00 a 2:00): una hora más de sueño", ["La madrugada del domingo, a las 3:00 vuelven a ser las 2:00.", "La tablet y los celulares cambian solos; los relojes del horno o del auto, no."]],
   ]) {
     const s = lastSunday(y, m);
     tip("dst" + m, addDays(s, -3), s, text, s, info);

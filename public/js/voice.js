@@ -106,7 +106,7 @@
       return endConversation();
     }
     if (!r.frames || !r.frames.length) {
-      return endConversation(history.length || r.frames ? undefined : "No te he oído. Toca la esfera y habla cerca de la tablet.");
+      return endConversation(history.length || r.frames ? undefined : "No te escuché. Toca la esfera y habla cerca de la tablet.");
     }
     voiceTurn(r.frames);
   }
@@ -119,13 +119,13 @@
     try {
       const j = await N.api("/api/voice", { method: "POST", body: { audio: MIC().toWavBase64(frames), history, cooking: cooking() } });
       if (!j.text) {
-        caption("", "No te he entendido. Repítelo, por favor.", "hint");
+        caption("", "No te entendí. Repítelo, por favor.", "hint");
         return listen(FOLLOW_NO_SPEECH_MS);
       }
       if (j.end || (GOODBYE.test(j.text) && j.text.length < 40)) endAfterReply = true;
       await handleReply(j.text, j);
     } catch (e) {
-      caption(undefined, failText(e, "No he podido responder ahora. Revisa la conexión."), "error");
+      caption(undefined, failText(e, "No pude responder ahora. Revisa la conexión."), "error");
       endConversation();
     }
   }
@@ -134,8 +134,8 @@
   function failText(e, fallback) {
     if (e && e.message === "quota") {
       const reset = new Date(); reset.setUTCHours(24, 0, 0, 0); // la cuota se renueva a las 00:00 UTC
-      const at = reset.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
-      return "Hoy ya he usado toda mi cuota gratuita de inteligencia artificial. Vuelvo a estar disponible a las " + at + ".";
+      const at = reset.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return "Hoy ya usé toda mi cuota gratuita de inteligencia artificial. Vuelvo a estar disponible a las " + at + ".";
     }
     return fallback;
   }
@@ -149,7 +149,7 @@
       const j = await N.api("/api/assistant", { method: "POST", body: { text, history, cooking: cooking() } });
       await handleReply(text, j);
     } catch (e) {
-      caption(undefined, failText(e, "No he podido responder ahora. Inténtalo de nuevo en un momento."), "error");
+      caption(undefined, failText(e, "No pude responder ahora. Inténtalo de nuevo en un momento."), "error");
       endConversation();
     }
   }
@@ -306,7 +306,9 @@
     if (!("speechSynthesis" in window)) return null;
     const lang = (v) => (v.lang || "").replace("_", "-");
     const voices = speechSynthesis.getVoices();
-    deviceVoice = voices.find((v) => lang(v) === "es-ES") || voices.find((v) => lang(v).startsWith("es")) || null;
+    // Español de Latinoamérica antes que el de España
+    const pref = ["es-CL", "es-US", "es-419", "es-MX", "es-AR", "es-CO"];
+    deviceVoice = pref.map((l) => voices.find((v) => lang(v) === l)).find(Boolean) || voices.find((v) => lang(v).startsWith("es") && lang(v) !== "es-ES") || voices.find((v) => lang(v).startsWith("es")) || null;
     return deviceVoice;
   }
 
@@ -320,7 +322,7 @@
       if (!("speechSynthesis" in window) || token !== speakToken) return resolve();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = "es-ES";
+      u.lang = "es-CL";
       if (deviceVoice || pickDeviceVoice()) { u.voice = deviceVoice; u.lang = deviceVoice.lang.replace("_", "-"); }
       speakDone = resolve;
       u.onend = u.onerror = () => resolve();

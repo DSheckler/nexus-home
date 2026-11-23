@@ -1,5 +1,5 @@
 // NEXUS Home - modo cocina: una receta paso a paso a pantalla completa.
-// Se abre cuando el asistente prepara una receta ("vamos a cocinar tortilla de patatas").
+// Se abre cuando el asistente prepara una receta ("vamos a cocinar tortilla de papas").
 // Se maneja tocando o por voz: "Oye NEXUS, siguiente", "anterior", "repite", "pon el
 // temporizador", "ingredientes", "termina".
 (function () {

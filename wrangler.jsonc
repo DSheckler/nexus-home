@@ -23,8 +23,8 @@
   // Plan gratuito con cuota diaria de 10.000 neuronas.
   "ai": { "binding": "AI" },
 
-  // Voz del asistente (Aura-2 español): sirio, nestor, carina, celeste, alvaro,
-  // diana, aquila, selena, estrella, javier
+  // Voz del asistente (Aura-2 español). Latinoamericanas: selena, aquila; mexicanas: sirio,
+  // estrella, javier; colombiana: celeste; de España: nestor, carina, alvaro, diana
   "vars": { "TTS_VOICE": "carina" },
 
   // Secretos (no se guardan aquí): NEXUS_TOKEN, FAMILY_TOKEN, NEXUS_HOME, GOOGLE_SA, GOOGLE_CALENDARS,

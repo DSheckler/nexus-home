@@ -2,8 +2,8 @@
 //
 // No hay forma automática de leer el consumo (ni la red ni la compañía tienen API), así que:
 // - Durante el mes se ESTIMA: consumo diario habitual × precio real de cada hora
-//   (spot + compañía + red + impuesto, con IVA), repartido según un perfil típico de un piso.
-// - Cuando llega la factura se apunta el total de kWh del mes ("lectura"). Con eso el mes
+//   (spot + compañía + red + impuesto, con IVA), repartido según un perfil típico de un departamento.
+// - Cuando llega la factura se anota el total de kWh del mes ("lectura"). Con eso el mes
 //   queda calculado con datos reales y el consumo diario de los meses siguientes se ajusta.
 //
 // Los precios spot de los días pasados se guardan en KV (no cambian), así que cada día solo
@@ -17,7 +17,7 @@ const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit
 const fHour = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: TZ });
 const READINGS = "power:readings";
 
-// Reparto del consumo de un día en un piso sin calefacción eléctrica: poco de noche,
+// Reparto del consumo de un día en un departamento sin calefacción eléctrica: poco de noche,
 // picos al desayunar y, sobre todo, de 17 a 21 (cocina, luces, tele, lavadora).
 const RAW = [0.6, 0.5, 0.5, 0.5, 0.5, 0.6, 0.9, 1.2, 1.1, 0.9, 0.9, 0.9, 1.0, 0.9, 0.9, 1.0, 1.2, 1.5, 1.7, 1.6, 1.4, 1.2, 1.0, 0.8];
 const SUM = RAW.reduce((a, b) => a + b, 0);
@@ -55,7 +55,7 @@ export async function saveReading(env, { month, kwh }) {
   month = String(month || "");
   const n = Number(String(kwh).replace(",", "."));
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("Mes no válido (formato AAAA-MM)");
-  if (month >= monthOf(fKey.format(new Date()))) throw new Error("Solo se pueden apuntar meses ya terminados");
+  if (month >= monthOf(fKey.format(new Date()))) throw new Error("Solo se pueden anotar meses ya terminados");
   if (!(n > 0 && n < 20000)) throw new Error("Consumo no válido (kWh del mes)");
   const list = (await listReadings(env)).filter((r) => r.month !== month);
   list.push({ month, kwh: round(n, 1), at: Date.now() });
@@ -72,8 +72,8 @@ export async function deleteReading(env, month) {
   return list;
 }
 
-// Consumo diario que se usa para estimar: el mismo mes del año pasado si se apuntó;
-// si no, el último mes apuntado (de los últimos 3); si no, el consumo anual de la configuración.
+// Consumo diario que se usa para estimar: el mismo mes del año pasado si se anotó;
+// si no, el último mes anotado (de los últimos 3); si no, el consumo anual de la configuración.
 function dailyRate(readings, month) {
   const [y, m] = month.split("-");
   const lastYear = readings.find((r) => r.month === `${Number(y) - 1}-${m}`);
@@ -169,7 +169,7 @@ async function withCompare(env, month, perDay, result) {
   return result;
 }
 
-// Resumen para el panel y la voz: mes en curso (estimado) y meses apuntados (calculados)
+// Resumen para el panel y la voz: mes en curso (estimado) y meses anotados (calculados)
 export async function powerMonth(env) {
   const month = monthOf(fKey.format(new Date()));
   const hit = cache.get(month);
@@ -200,7 +200,7 @@ export async function powerMonth(env) {
 export async function powerMonthText(env) {
   const { current: c, past } = await powerMonth(env);
   const last = past[0];
-  const prev = last ? ` En ${last.label} fueron ${last.kwh} kilovatios hora, unas ${last.kr} coronas.` : " Cuando llegue la factura, apunta los kilovatios hora del mes y el cálculo será exacto.";
+  const prev = last ? ` En ${last.label} fueron ${last.kwh} kilovatios hora, unas ${last.kr} coronas.` : " Cuando llegue la factura, anota los kilovatios hora del mes y el cálculo será exacto.";
   const cmp = c.compare ? ` Con ${c.compare.name} habrían sido unas ${c.compare.forecastKr} coronas: ${c.compare.savedForecastKr >= 0 ? `ahorran unas ${c.compare.savedForecastKr}` : `pagan unas ${-c.compare.savedForecastKr} más`}.` : "";
   return `Este mes llevamos unos ${c.kwh} kilovatios hora y unas ${c.kr} coronas de luz, contando la red y los impuestos. A este ritmo, el mes completo saldrá por unas ${c.forecastKr} coronas.${spotWhy(c, true)}${cmp} Es una estimación con ${c.basis}.${prev}`;
 }
