@@ -31,5 +31,8 @@
   // SHELLY_AUTH_KEY, SHELLY_SERVER
   // Se configuran con: npx wrangler secret put NEXUS_TOKEN
 
+  // Tarea diaria: renovar los avisos al instante de Google Calendar (caducan cada semana)
+  "triggers": { "crons": ["17 4 * * *"] },
+
   "observability": { "enabled": true }
 }

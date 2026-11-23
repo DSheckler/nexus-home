@@ -122,6 +122,9 @@ Necesitas una cuenta gratuita de [Cloudflare](https://dash.cloudflare.com/sign-u
 
    Para alguien sin cuenta de Google, añade `"host":"ana"` y el `id` del calendario de esa persona
    anfitriona.
+4. Los cambios hechos en Google Calendar llegan al panel en segundos: NEXUS se suscribe a los avisos
+   de Google (`events.watch`) la primera vez que se abre la agenda, y una tarea diaria los renueva.
+   Estado: `GET /api/gcal/watch`.
 
 ### Opcional: app Android de quiosco
 Mantiene la pantalla encendida, da permiso de micrófono y abre el panel a pantalla completa.

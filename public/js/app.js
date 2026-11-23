@@ -28,7 +28,7 @@
 
   // Frecuencia de actualización
   const WEATHER_EVERY = 15 * 60 * 1000;
-  const SYNC_EVERY = 2 * 60 * 1000; // agenda y alarmas
+  const SYNC_EVERY = 60 * 1000; // agenda y alarmas (respaldo: lo normal es el aviso al instante de Google)
 
   // Parámetros de prueba: ?modo=noche | ?modo=dia | ?probar=alarma
   const params = new URLSearchParams(location.search);

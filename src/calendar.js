@@ -4,6 +4,7 @@
 import { googleConfigured, calendarsConfig, listEvents, gcal } from "./google.js";
 import { upcomingDates } from "./household.js";
 import { holidaysOf } from "./life.js";
+import { agendaVersion, bumpAgenda } from "./gcalpush.js";
 
 const TZ = "Europe/Stockholm";
 const DAYS_AHEAD = 14;
@@ -13,7 +14,7 @@ const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit
 const fTime = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
 const fShort = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", timeZone: TZ });
 
-let cache = { at: 0, data: null };
+let cache = { at: 0, data: null, ver: "" };
 
 // "2026-11-23" + n días (en calendario, sin depender de la hora)
 function addDays(key, n) {
@@ -91,7 +92,8 @@ export async function getAgenda(env) {
 
 async function getAgendaBase(env) {
   if (!googleConfigured(env)) return exampleAgenda();
-  if (cache.data && Date.now() - cache.at < CACHE_MS) return cache.data;
+  const ver = await agendaVersion(env).catch(() => "");
+  if (cache.data && cache.ver === ver && Date.now() - cache.at < CACHE_MS) return cache.data;
 
   const cals = calendarsConfig(env);
   const now = new Date();
@@ -132,7 +134,7 @@ async function getAgendaBase(env) {
     }));
 
   const data = { source: "google", people, today, upcoming, errors, updated: now.toISOString() };
-  cache = { at: Date.now(), data };
+  cache = { at: Date.now(), data, ver };
   return data;
 }
 
@@ -148,14 +150,15 @@ function calendarFor(env, who) {
 }
 
 // Eventos de los próximos `days` días con id y fecha completos
-let rangeCache = { key: "", at: 0, data: null };
+let rangeCache = { key: "", at: 0, data: null, ver: "" };
 
 export async function agendaRange(env, days = 7) {
   if (!googleConfigured(env)) return withDates(env, exampleRange(days), days); // modo demostración
   const key = String(days);
-  if (rangeCache.key === key && Date.now() - rangeCache.at < CACHE_MS) return withDates(env, rangeCache.data, days);
+  const ver = await agendaVersion(env).catch(() => "");
+  if (rangeCache.key === key && rangeCache.ver === ver && Date.now() - rangeCache.at < CACHE_MS) return withDates(env, rangeCache.data, days);
   const data = await agendaRangeFresh(env, days);
-  rangeCache = { key, at: Date.now(), data };
+  rangeCache = { key, at: Date.now(), data, ver };
   return withDates(env, data, days);
 }
 
@@ -210,7 +213,7 @@ export async function createEvent(env, input) {
   const body = guestBody(cal, eventBody(input));
   if (input.description) body.description = String(input.description).slice(0, 500);
   const e = await gcal(env, `/calendars/${encodeURIComponent(cal.id)}/events`, { method: "POST", body });
-  cache = { at: 0, data: null }; rangeCache = { key: "", at: 0, data: null };
+  cache = { at: 0, data: null, ver: "" }; rangeCache = { key: "", at: 0, data: null, ver: "" }; await bumpAgenda(env).catch(() => {});
   return { id: e.id, who: cal.who, title: input.title };
 }
 
@@ -226,14 +229,14 @@ export async function updateEvent(env, { who, id, ...changes }) {
     end: changes.end ?? (changes.start ? undefined : current.end),
   };
   const e = await gcal(env, path, { method: "PATCH", body: guestBody(cal, eventBody(merged)) });
-  cache = { at: 0, data: null }; rangeCache = { key: "", at: 0, data: null };
+  cache = { at: 0, data: null, ver: "" }; rangeCache = { key: "", at: 0, data: null, ver: "" }; await bumpAgenda(env).catch(() => {});
   return { id: e.id, who: cal.who, title: merged.title };
 }
 
 export async function deleteEvent(env, { who, id }) {
   const cal = calendarFor(env, who);
   await gcal(env, `/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(id)}`, { method: "DELETE" });
-  cache = { at: 0, data: null }; rangeCache = { key: "", at: 0, data: null };
+  cache = { at: 0, data: null, ver: "" }; rangeCache = { key: "", at: 0, data: null, ver: "" }; await bumpAgenda(env).catch(() => {});
   return { deleted: true };
 }
 

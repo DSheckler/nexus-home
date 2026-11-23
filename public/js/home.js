@@ -1053,6 +1053,8 @@
         if (sheet && sheet.dataset.kind === "plants") openPlants();
       } else if (m.type === "menu" && Array.isArray(m.menu)) {
         data.menuWeek = m.menu; data.menu = m.menu.slice(0, 2); render();
+      } else if (m.type === "agenda") {
+        if (N.refreshAgenda) N.refreshAgenda(); // cambio en Google Calendar: al momento
       } else if (m.type === "refresh") {
         refresh();
       } else if (m.type === "powerMonth" && m.powerMonth) {

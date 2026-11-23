@@ -17,11 +17,12 @@ import * as P from "./planner.js";
 import { getWeeklyBriefing } from "./weekly.js";
 import * as L from "./life.js";
 import { getAir, getAurora } from "./outdoor.js";
+import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush.js";
 
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.15.10";
+const VERSION = "1.16.0";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -188,7 +189,14 @@ async function handleApi(request, env, url, ctx) {
     return json({ ok: true, ...(await getWeatherDetail()) }, 200, 300);
   }
   if (path === "/api/agenda" && method === "GET") {
+    // De paso, se asegura de que Google avise de los cambios (si aún no hay canales o van a caducar)
+    ctx.waitUntil(ensureWatches(env, url.origin).catch((e) => console.error("gcal watch", e)));
     return json({ ok: true, ...(await getAgenda(env)) });
+  }
+  // Avisos al instante de Google Calendar: estado y (re)arranque manual
+  if (path === "/api/gcal/watch") {
+    if (method === "GET") return json({ ok: true, ...(await watchStatus(env)) });
+    if (method === "POST") return json(await startWatches(env, url.origin));
   }
   // Panel de agenda interactivo: 14 días con id, y crear/borrar eventos
   if (path === "/api/agenda/range" && method === "GET") {
@@ -438,9 +446,22 @@ async function handleApi(request, env, url, ctx) {
 }
 
 export default {
+  // Tarea programada (diaria): renueva los avisos de Google Calendar antes de que caduquen
+  async scheduled(event, env, ctx) {
+    loadConfig(env);
+    ctx.waitUntil(ensureWatches(env).catch((e) => console.error("gcal renovar", e)));
+  },
+
   async fetch(request, env, ctx) {
     loadConfig(env);
     const url = new URL(request.url);
+
+    // Aviso de Google Calendar (público, comprobado con una clave secreta del canal)
+    if (url.pathname === "/gcal/push" && request.method === "POST") {
+      const r = await handlePush(request, env).catch(() => false);
+      if (r === "changed") ctx.waitUntil(notify(env, null, { type: "agenda" }, ["full"]));
+      return new Response(null, { status: r ? 200 : 403 });
+    }
 
     if (url.pathname.startsWith("/api/")) {
       try {
