@@ -65,12 +65,22 @@
   async function api(path, opts = {}) {
     const headers = { Authorization: "Bearer " + (load("token") || "") };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-    const r = await fetch(path, {
-      method: opts.method || "GET",
-      headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      cache: "no-store",
-    });
+    let r;
+    try {
+      r = await fetch(path, {
+        method: opts.method || "GET",
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        cache: "no-store",
+      });
+    } catch (e) {
+      const was = state.netFailAt > (state.netOkAt || 0);
+      state.netFailAt = Date.now();
+      if (!was) { renderStatus(); remoteLog({ type: "red", msg: path + ": " + (e.message || e) }); }
+      throw e;
+    }
+    if (state.netFailAt > (state.netOkAt || 0)) { state.netOkAt = Date.now(); renderStatus(); }
+    else state.netOkAt = Date.now();
     if (r.status === 401) { state.authorized = false; renderStatus(); throw new Error("Tablet no vinculada"); }
     state.authorized = true;
     const j = await r.json();
@@ -201,14 +211,18 @@
     );
   }
 
+  let weatherRetry = null;
   async function fetchWeather() {
     try {
       const j = await api("/api/weather");
       state.weather = j;
       state.weatherOk = true;
       save("weather", j);
-    } catch {
+    } catch (e) {
       state.weatherOk = false; // se queda la última copia buena
+      remoteLog({ type: "tiempo", msg: e.message || String(e) });
+      clearTimeout(weatherRetry);
+      weatherRetry = setTimeout(fetchWeather, 60 * 1000);
     }
     renderWeather();
     renderTimeline();
@@ -338,9 +352,12 @@
     if (!state.authorized) {
       dot.className = "dot err";
       txt.textContent = "Tablet sin vincular";
-    } else if (!navigator.onLine || (!state.weatherOk && state.weather)) {
+    } else if (!navigator.onLine || state.netFailAt > (state.netOkAt || 0)) {
       dot.className = "dot err";
       txt.textContent = "Sin conexión";
+    } else if (!state.weatherOk && state.weather) {
+      dot.className = "dot err";
+      txt.textContent = "Sin datos del tiempo";
     } else if (state.agenda && state.agenda.source === "example") {
       dot.className = "dot ok";
       txt.textContent = "Agenda de ejemplo";
