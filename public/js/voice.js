@@ -213,7 +213,12 @@
     }).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
   }
 
+  const SND = () => window.NexusSound;
   function playBlob(blob, token) {
+    if (SND() && SND().native()) { // app Android: reproductor nativo (la salida de la página falla)
+      if (token !== speakToken) return Promise.resolve();
+      return SND().playBlob(blob);
+    }
     return new Promise((resolve) => {
       if (token !== speakToken) return resolve();
       const url = URL.createObjectURL(blob);
@@ -275,7 +280,8 @@
       const parts = sentences(text);
       // Las frases siguientes se piden ya, mientras suena la primera
       const rest = parts.slice(1).map(ttsFetch);
-      let ok = CAN_STREAM ? await playStreaming(parts[0], token).catch(() => false) : false;
+      const streamOk = CAN_STREAM && !(SND() && SND().native());
+      let ok = streamOk ? await playStreaming(parts[0], token).catch(() => false) : false;
       if (token !== speakToken) return;
       if (!ok) {
         const blob = await ttsFetch(parts[0]);
@@ -305,6 +311,11 @@
   }
 
   function deviceSpeak(text, token) {
+    // App Android: voz de Google del sistema (gratis). speechSynthesis no existe en WebView.
+    if (SND() && SND().hasDeviceVoice()) {
+      if (token !== speakToken) return Promise.resolve();
+      return SND().deviceSpeak(text);
+    }
     return new Promise((resolve) => {
       if (!("speechSynthesis" in window) || token !== speakToken) return resolve();
       speechSynthesis.cancel();
@@ -320,6 +331,7 @@
   function stopSpeaking() {
     speakToken++;
     player.pause();
+    if (SND()) SND().stop();
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     if (speakDone) { const d = speakDone; speakDone = null; d(); }
   }

@@ -181,7 +181,114 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() {
-            return "1.4";
+            return "1.5";
+        }
+
+        // ---------- Sonido con el reproductor nativo ----------
+        // En esta tablet (Android 11 + WebView 140) la salida de audio de la página usa AAudio
+        // y se desconecta a los pocos milisegundos de empezar ("device change"): la voz y las
+        // alarmas sonaban a trozos. MediaPlayer no tiene ese fallo, así que la página le pasa
+        // el audio ya hecho (MP3 o WAV en base64) y aquí se reproduce.
+        private final java.util.Map<String, android.media.MediaPlayer> players = new java.util.HashMap<>();
+        private int fileSeq = 0;
+
+        @JavascriptInterface
+        public boolean playAudio(final String base64, final String id, final float volume) {
+            final java.io.File f;
+            try {
+                byte[] data = Base64.decode(base64, Base64.DEFAULT);
+                f = new java.io.File(getCacheDir(), "snd" + (fileSeq++ % 8));
+                try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(data); }
+            } catch (Exception e) {
+                return false;
+            }
+            runOnUiThread(() -> {
+                android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                try {
+                    mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build());
+                    mp.setDataSource(f.getAbsolutePath());
+                    float v = Math.max(0f, Math.min(1f, volume));
+                    mp.setVolume(v, v);
+                    mp.setOnCompletionListener(p -> finish(id, p));
+                    mp.setOnErrorListener((p, what, extra) -> { finish(id, p); return true; });
+                    mp.prepare();
+                    synchronized (players) { players.put(id, mp); }
+                    mp.start();
+                } catch (Exception e) {
+                    mp.release();
+                    notifyEnded(id);
+                }
+            });
+            return true;
+        }
+
+        private void finish(String id, android.media.MediaPlayer p) {
+            synchronized (players) { players.remove(id); }
+            try { p.release(); } catch (Exception ignored) { }
+            notifyEnded(id);
+        }
+
+        private void notifyEnded(String id) {
+            String safe = id.replaceAll("[^A-Za-z0-9_-]", "");
+            runOnUiThread(() -> web.evaluateJavascript("window.NexusSound&&NexusSound.ended('" + safe + "')", null));
+        }
+
+        // ---------- Voz de Android (Google TTS): gratis, sin cuota de Cloudflare ----------
+        // speechSynthesis no existe dentro de WebView; los textos largos y la reserva sin cuota
+        // usan este motor del sistema.
+        private android.speech.tts.TextToSpeech tts;
+        private boolean ttsReady = false;
+
+        private void ensureTts() {
+            if (tts != null) return;
+            tts = new android.speech.tts.TextToSpeech(MainActivity.this, status -> {
+                if (status != android.speech.tts.TextToSpeech.SUCCESS) return;
+                java.util.Locale es = new java.util.Locale("es", "ES");
+                int r = tts.setLanguage(es);
+                ttsReady = r != android.speech.tts.TextToSpeech.LANG_MISSING_DATA && r != android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED;
+                tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                    @Override public void onStart(String id) { }
+                    @Override public void onDone(String id) { notifyEnded(id); }
+                    @Override public void onError(String id) { notifyEnded(id); }
+                    @Override public void onStop(String id, boolean interrupted) { notifyEnded(id); }
+                });
+            });
+        }
+
+        @JavascriptInterface
+        public boolean ttsAvailable() {
+            runOnUiThread(this::ensureTts);
+            return ttsReady;
+        }
+
+        @JavascriptInterface
+        public boolean speak(final String text, final String id) {
+            if (!ttsReady) { runOnUiThread(this::ensureTts); return false; }
+            runOnUiThread(() -> {
+                Bundle b = new Bundle();
+                b.putInt(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC);
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, b, id);
+            });
+            return true;
+        }
+
+        @JavascriptInterface
+        public void stopAudio() {
+            runOnUiThread(() -> {
+                if (tts != null) tts.stop();
+                java.util.List<String> ids;
+                synchronized (players) { ids = new java.util.ArrayList<>(players.keySet()); }
+                for (String id : ids) {
+                    android.media.MediaPlayer p;
+                    synchronized (players) { p = players.remove(id); }
+                    if (p == null) continue;
+                    try { p.stop(); } catch (Exception ignored) { }
+                    try { p.release(); } catch (Exception ignored) { }
+                    notifyEnded(id);
+                }
+            });
         }
 
         private int savedVolume = -1;

@@ -45,43 +45,55 @@
   }
 
   // ---------- sonido (sintetizado, sin archivos) ----------
+  // En la app Android las notas se generan antes (OfflineAudioContext) y suenan con el
+  // reproductor nativo: la salida de audio de la página falla en la tablet (ver sound.js).
+  const SND = () => window.NexusSound;
+  const nativeOut = () => !!(SND() && SND().native());
   function unlockAudio() {
-    try {
-      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-      if (audio.state === "suspended") audio.resume();
-    } catch { /* sin audio */ }
+    if (!nativeOut()) {
+      try {
+        if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+        if (audio.state === "suspended") audio.resume();
+      } catch { /* sin audio */ }
+    }
     if (ring) ring.el.classList.toggle("muted", !audioReady());
   }
-  const audioReady = () => audio && audio.state === "running";
+  const audioReady = () => nativeOut() || (audio && audio.state === "running");
 
   // Un compresor evita que el sonido se distorsione al subir mucho el volumen
-  let master = null;
-  function out() {
-    if (!master) {
-      master = audio.createDynamicsCompressor();
-      master.threshold.value = -10;
-      master.ratio.value = 4;
-      const boost = audio.createGain();
-      boost.gain.value = 1.6;
-      master.connect(boost).connect(audio.destination);
-    }
-    return master;
+  function masterOf(ctx) {
+    if (ctx.__master) return ctx.__master;
+    const m = ctx.createDynamicsCompressor();
+    m.threshold.value = -10;
+    m.ratio.value = 4;
+    const boost = ctx.createGain();
+    boost.gain.value = 1.6;
+    m.connect(boost).connect(ctx.destination);
+    ctx.__master = m;
+    return m;
   }
 
   // Una nota con timbre de marimba: fundamental redonda + armónico agudo que se apaga rápido
-  function mallet(freq, at, level, length = 1.2) {
+  function mallet(ctx, freq, at, level, length = 1.2) {
     [[freq, 1, length], [freq * 3.99, 0.22, 0.18], [freq * 2, 0.12, length * 0.6]].forEach(([f, mix, dur]) => {
-      const o = audio.createOscillator();
-      const g = audio.createGain();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
       o.type = "sine";
       o.frequency.value = f;
       g.gain.setValueAtTime(0.0001, at);
       g.gain.exponentialRampToValueAtTime(Math.max(0.001, level * mix), at + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-      o.connect(g).connect(out());
+      o.connect(g).connect(masterOf(ctx));
       o.start(at);
       o.stop(at + dur + 0.05);
     });
+  }
+
+  // Programa un sonido: en la app, generado y por el reproductor nativo; si no, en directo
+  function play(seconds, build) {
+    if (nativeOut()) { SND().synth(seconds, (ctx) => build(ctx, 0.02)); return; }
+    if (!audioReady()) return;
+    build(audio, audio.currentTime + 0.02);
   }
 
   // Alarma: melodía suave y luminosa (composición propia) que empieza bajito y va
@@ -93,29 +105,29 @@
   ];
   const ALARM_EVERY = 4400;
   function alarmPhrase(level, elapsed) {
-    if (!audioReady()) return;
-    const t = audio.currentTime + 0.02;
-    for (const [n, off] of MELODY) mallet(N5[n], t + off, level, n === "C6" && off > 3 ? 2.2 : 1.1);
-    if (elapsed > 20000) for (const [n, off] of MELODY) mallet(N5[n] * 2, t + off + 0.01, level * 0.35, 0.6);
+    play(5.7, (ctx, t) => {
+      for (const [n, off] of MELODY) mallet(ctx, N5[n], t + off, level, n === "C6" && off > 3 ? 2.2 : 1.1);
+      if (elapsed > 20000) for (const [n, off] of MELODY) mallet(ctx, N5[n] * 2, t + off + 0.01, level * 0.35, 0.6);
+    });
   }
 
   // Temporizador: pitido de cocina, tres toques cortos y secos (no se confunde con la alarma)
   const TIMER_EVERY = 1500;
   function timerBeeps(level) {
-    if (!audioReady()) return;
-    const t = audio.currentTime + 0.02;
-    [0, 0.16, 0.32].forEach((off) => {
-      const o = audio.createOscillator();
-      const g = audio.createGain();
-      o.type = "square";
-      o.frequency.value = 2093;
-      g.gain.setValueAtTime(0.0001, t + off);
-      g.gain.exponentialRampToValueAtTime(level * 0.35, t + off + 0.005);
-      g.gain.setValueAtTime(level * 0.35, t + off + 0.09);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.11);
-      o.connect(g).connect(out());
-      o.start(t + off);
-      o.stop(t + off + 0.13);
+    play(0.5, (ctx, t) => {
+      [0, 0.16, 0.32].forEach((off) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "square";
+        o.frequency.value = 2093;
+        g.gain.setValueAtTime(0.0001, t + off);
+        g.gain.exponentialRampToValueAtTime(level * 0.35, t + off + 0.005);
+        g.gain.setValueAtTime(level * 0.35, t + off + 0.09);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.11);
+        o.connect(g).connect(masterOf(ctx));
+        o.start(t + off);
+        o.stop(t + off + 0.13);
+      });
     });
   }
 
@@ -165,6 +177,7 @@
     if (!ring) return;
     const finished = ring.alarm;
     clearInterval(ring.timer);
+    if (nativeOut()) SND().stop(); // corta la frase que esté sonando
     ring.el.remove();
     ring = null;
     if (window.NexusAndroid && window.NexusAndroid.alarmVolume) { try { window.NexusAndroid.alarmVolume(false); } catch { /* sin app */ } }
@@ -488,10 +501,11 @@
   function chime() {
     unlockAudio();
     if (!audioReady()) return false;
-    const t = audio.currentTime + 0.05;
-    mallet(N5.G, t, 0.35, 0.9);
-    mallet(N5.C6, t + 0.16, 0.4, 1.0);
-    mallet(N5.E6, t + 0.32, 0.45, 1.4);
+    play(1.9, (ctx, t) => {
+      mallet(ctx, N5.G, t + 0.03, 0.35, 0.9);
+      mallet(ctx, N5.C6, t + 0.19, 0.4, 1.0);
+      mallet(ctx, N5.E6, t + 0.35, 0.45, 1.4);
+    });
     return true;
   }
 

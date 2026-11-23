@@ -5,7 +5,12 @@
   "use strict";
 
   // Variantes con las que Whisper puede escribir "NEXUS"
-  const WAKE = /\b(?:oye|hey|ey|oiga|o)?[\s,]*(nexus|nexos|nexo|nexuz|nexis|nexxus|neksus|lexus|next us|nexu)\b[\s,.!?¿¡]*/i;
+  // Tiene que ir al principio de la frase ("Oye NEXUS…", "NEXUS, …"): una palabra suelta
+  // en medio de una conversación o de la tele no la activa.
+  // Con "oye/hey" delante se aceptan también las formas en que Whisper confunde la palabra
+  const WAKE = /^[\s¿¡"'.,-]*(?:(?:oye|hey|ey|oiga|hola)[\s,]+(?:nexus|nexos|nexo|nexuz|nexis|nexxus|neksus|nexu|lexus|next us|(?:en |e )?ex[ou]s|n ?exus)|(?:nexus|nexuz|nexxus|neksus))\b[\s,.!?¿¡]*/i;
+  // Lo que Whisper inventa con ruido
+  const JUNK = /(subt[ií]tul|amara|suscr[ií]bete|gracias por (ver|mirar))/i;
 
   let N = null, V = null;
   let enabled = true;
@@ -62,10 +67,14 @@
       });
       if (res.status === 429) return quotaPause();
       const j = await res.json();
-      if (!j.ok || !j.text || paused) return;
-      const m = WAKE.exec(fold(j.text));
+      if (!j.ok || !j.text || paused || JUNK.test(j.text)) return;
+      const folded = fold(j.text);
+      const m = WAKE.exec(folded);
       if (!m) return;
-      const rest = j.text.slice(m.index + m[0].length).replace(/^[\s,.!?¿¡]+/, "").trim();
+      // Se quitan del texto original tantas palabras como ocupaba "Oye NEXUS" (conserva tildes)
+      const n = m[0].trim().split(/[\s,]+/).filter((w) => /[a-z]/.test(w)).length;
+      const rest = j.text.trim().split(/\s+/).slice(n).join(" ").replace(/^[\s,.!?¿¡]+/, "").trim();
+      if (window.NexusLog) window.NexusLog({ type: "wake", heard: j.text.slice(0, 120) });
       chime();
       if (rest.split(/\s+/).filter(Boolean).length >= 2) V.startWith(rest);
       else V.start();
@@ -82,6 +91,21 @@
   }
 
   function chime() {
+    // App Android: generado y por el reproductor nativo (la salida de la página falla en la tablet)
+    if (window.NexusSound && window.NexusSound.native()) {
+      window.NexusSound.synth(0.4, (ctx) => {
+        [880, 1318.5].forEach((f, i) => {
+          const o = ctx.createOscillator(), g = ctx.createGain(), at = 0.01 + i * 0.1;
+          o.frequency.value = f;
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(0.25, at + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+          o.connect(g).connect(ctx.destination);
+          o.start(at); o.stop(at + 0.25);
+        });
+      });
+      return;
+    }
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       [880, 1318.5].forEach((f, i) => {

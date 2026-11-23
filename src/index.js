@@ -22,7 +22,7 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.19.2";
+const VERSION = "1.20.1";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -42,6 +42,7 @@ const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // ~1 minuto de voz comprimida
 const TTS_MODEL = "@cf/deepgram/aura-2-es";
 const TTS_NEURONS_PER_CHAR = 2.7273;     // 2727,27 neuronas por 1.000 caracteres
 const STT_NEURONS = 5;                    // una frase corta (~47 neuronas por minuto de audio)
+const WAKE_NEURONS = 2;                   // fragmento de "Oye NEXUS" (2-3 s): antes no se contaba
 const WAKE_LIMIT = 8000;                  // por encima, la escucha "Oye NEXUS" se pausa hasta mañana
 const TTS_MAX_CHARS = 220;                // textos más largos (p. ej. el resumen) se leen con la voz de la tablet
 
@@ -52,14 +53,26 @@ const json = (data, status = 200, maxAge = 0) =>
   });
 
 // Voz a texto con Whisper en Workers AI. La pista (nombres de la familia y la ciudad) mejora nombres propios.
-const whisperPrompt = () => `Oye NEXUS. ${config().family.join(", ")}. ${config().city}.`;
+// Sin "Oye NEXUS" en la pista: con ruido, Whisper tiende a copiar la pista y la tablet
+// se activaba sola.
+const whisperPrompt = () => `${config().family.join(", ")}. ${config().city}.`;
 
-async function whisper(env, base64, count = true) {
+// Frases que Whisper inventa con silencio o ruido (subtítulos de vídeos con los que se entrenó)
+const HALLUCINATION = /(subt[ií]tul|amara\.org|suscr[ií]bete|gracias por (ver|mirar)|nos vemos en el pr[oó]ximo|m[uú]sica de fondo|^\W*(m[uú]sica|aplausos|risas)\W*$|^[\s.,¡!¿?…-]*$)/i;
+const fold = (t) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9ñ ]+/g, " ").replace(/\s+/g, " ").trim();
+
+async function whisper(env, base64, count = true, { wake = false } = {}) {
   const r = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
-    audio: base64, language: "es", initial_prompt: whisperPrompt(),
+    // Para la activación, una pista que enseña la palabra pero no empieza por ella: si Whisper
+    // la copiara con ruido, no coincide con "Oye NEXUS…" al principio y no activa nada.
+    audio: base64, language: "es", initial_prompt: wake ? "Asistente de casa llamado Nexus." : whisperPrompt(),
   });
-  if (count) await addUsage(env, STT_NEURONS);
-  return (r.text || "").trim();
+  await addUsage(env, wake ? WAKE_NEURONS : STT_NEURONS).catch(() => {});
+  let text = (r.text || "").trim();
+  if (HALLUCINATION.test(text)) text = "";
+  // Si solo repite la pista (los nombres y la ciudad), no se ha dicho nada
+  if (!wake && text && fold(whisperPrompt()).includes(fold(text))) text = "";
+  return text;
 }
 
 function toBase64(buf) {
@@ -69,11 +82,11 @@ function toBase64(buf) {
   return btoa(bin);
 }
 
-async function transcribe(request, env, count = true) {
+async function transcribe(request, env, wake = false) {
   const buf = await request.arrayBuffer();
   if (!buf.byteLength) throw new Error("No llegó audio");
   if (buf.byteLength > MAX_AUDIO_BYTES) throw new Error("Grabación demasiado larga");
-  return whisper(env, toBase64(buf), count);
+  return whisper(env, toBase64(buf), true, { wake });
 }
 
 // Un turno de conversación completo en una sola petición:
@@ -218,7 +231,7 @@ async function handleApi(request, env, url, ctx) {
     if (url.searchParams.get("wake") && (await getUsage(env)) > WAKE_LIMIT) {
       return json({ ok: false, error: "quota" }, 429);
     }
-    return json({ ok: true, text: await transcribe(request, env, !url.searchParams.get("wake")) });
+    return json({ ok: true, text: await transcribe(request, env, !!url.searchParams.get("wake")) });
   }
   if (path === "/api/assistant" && method === "POST") {
     const r = await askAssistant(env, await body(request));
