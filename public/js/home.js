@@ -43,17 +43,21 @@
     const min = Math.min(...p.hours.map((x) => x.sek));
     const bars = N.h("span", { class: "pbars", "aria-hidden": "true" }, ...p.hours.map((x) =>
       N.h("i", { class: (x.h === p.now.h ? "now " : "") + (x.sek === min ? "low" : ""), style: `height:${Math.max(8, (x.sek / max) * 100)}%` })));
-    const sub = p.cheapestRest && p.cheapestRest.h !== p.now.h ? `Más barata a las ${p.cheapestRest.h}:00` : "Ahora es lo más barato";
+    let sub = p.cheapestRest && p.cheapestRest.h !== p.now.h ? `Más barata a las ${p.cheapestRest.h}:00` : "Ahora es lo más barato";
+    // Si el gasto del mes sube o baja mucho por el precio del mercado, la tarjeta dice por qué
+    const m0 = data.powerMonth && data.powerMonth.current;
+    const r = m0 && m0.why && m0.prevSpot ? m0.prevSpot.ratio : null;
+    if (r) sub = `Mercado ${r > 1 ? "×" + String(r).replace(".", ",") : "a la baja"} vs ${m0.prevSpot.label.split(" ")[0]}`;
     // Color según el precio de ahora frente a la media del día
     const level = p.now.sek < p.avg * 0.9 ? "" : p.now.sek <= p.avg * 1.15 ? " mid" : " high";
     const tint = level === "" ? "rgba(127,191,142,.18)" : level === " mid" ? "rgba(232,184,106,.16)" : "rgba(224,122,110,.18)";
     const c = card("power" + level, "Luz", N.h("span", { class: "card-b" },
-      N.h("span", { class: "card-v" }, kr(p.real ? p.real.now : p.now.sek), N.h("small", {}, " kr/kWh")), bars, N.h("span", { class: "card-s" }, sub)),
+      N.h("span", { class: "card-v" }, kr(p.real ? p.real.now : p.now.sek), N.h("small", {}, " kr/kWh")), bars, N.h("span", { class: "card-s" + (r ? (r > 1 ? " why up" : " why down") : "") }, sub)),
     openPower, "bolt");
     c.style.setProperty("--tint", tint);
     // Gasto estimado del mes en la esquina
     const pm = data.powerMonth && data.powerMonth.current;
-    if (pm) c.firstChild.append(N.h("span", { class: "badge month", title: "Gasto estimado del mes" }, "Mes ~" + Math.round(pm.kr) + " kr"));
+    if (pm) c.firstChild.append(N.h("span", { class: "badge month", title: pm.why || "Gasto estimado del mes" }, "Mes ~" + Math.round(pm.kr) + " kr"));
     return c;
   }
 
@@ -129,10 +133,10 @@
       data.notes, (data.notes || []).map((n) => plays[n.id] || 0), playing && playing.id,
       data.dates, p && [p.now.h, p.now.sek, p.real && p.real.now, p.cheapestRest && p.cheapestRest.h, p.avg],
       data.shopping, (data.garbage || [])[0], new Date().toDateString(),
-      data.powerMonth && data.powerMonth.current && data.powerMonth.current.kr,
+      data.powerMonth && data.powerMonth.current && [data.powerMonth.current.kr, data.powerMonth.current.why],
       data.reminders, data.chores, data.power && data.power.hourlyContract,
       data.plants, data.menu, data.school, data.aurora && [data.aurora.chance, data.aurora.when], data.air, data.season,
-      data.settings && data.settings.vacation, data.abroad, hourNow(),
+      data.settings && data.settings.vacation, data.abroad, hourNow(), N.briefingSlot && (N.briefingSlot() || {}).kind,
     ]);
   }
 
@@ -147,6 +151,9 @@
     // ---- franja de avisos ----
     const chips = [];
     if (media) chips.push(mediaCard());
+    // Resumen de la mañana / de la noche: solo se lee si alguien toca el botón
+    const bs = N.briefingSlot && N.briefingSlot();
+    if (bs) chips.push(chip("brief " + bs.kind, bs.icon, bs.label, () => N.playBriefing(bs)));
     chips.push(...reminderPills(now));
     const top = [];
     // Avisos de SMHI: arriba del todo, con el color del nivel; al tocar, el detalle en español
@@ -846,6 +853,7 @@
         N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.kr) + " kr"), N.h("span", { class: "pw-l" }, `${c.label.split(" ")[0]} hasta hoy · ~${c.kwh} kWh`)),
         N.h("div", { class: "pw-big" }, N.h("span", { class: "pw-v" }, "~" + kr0(c.forecastKr) + " kr"), N.h("span", { class: "pw-l" }, `previsión del mes · ~${c.forecastKwh} kWh`))),
         N.h("p", { class: "pw-note" }, `Estimado con ${c.basis} y el precio real de cada hora. Incluye red, impuesto e IVA` + (c.hasGridFee ? ", y la cuota fija de la red." : " (falta la cuota fija de la red).")));
+      if (c.why) body.push(N.h("p", { class: "pw-why" }, c.why + " Por eso sube o baja la factura aunque gastéis lo mismo."));
       if (c.compare) body.push(N.h("p", { class: "pw-cmp " + (c.compare.savedForecastKr >= 0 ? "good" : "bad") },
         `Con ${c.compare.name} este mes saldría por ~${kr0(c.compare.forecastKr)} kr: ` + (c.compare.savedForecastKr >= 0 ? `con ${c.compare.current} ahorráis ~${kr0(c.compare.savedForecastKr)} kr.` : `con ${c.compare.current} pagáis ~${kr0(-c.compare.savedForecastKr)} kr más.`)));
     }

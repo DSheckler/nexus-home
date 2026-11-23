@@ -567,37 +567,30 @@
     wakePanel(true);
   });
 
-  // ---------- buenos días ----------
-  // Al terminar la noche (07:00 entre semana, 08:00 el fin de semana) NEXUS saluda y lee
-  // el resumen del día con recomendaciones. Una vez al día; si una alarma con rutina ya
-  // lo leyó, no se repite.
+  // ---------- resumen de la mañana y de la noche ----------
+  // NEXUS ya no habla solo: en esas horas aparece un botón y el resumen se lee al tocarlo.
+  // Mañana: desde que termina la noche (07:00 / 08:00) hasta 3 h después.
+  // Noche: las 2 h antes del modo noche (el domingo, el resumen de la semana que viene).
+  // También se puede pedir en cualquier momento: «Oye NEXUS, resumen del día».
   const fDay = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
   const morningKey = () => "morning." + fDay.format(new Date());
-  function morningDone() { try { return localStorage.getItem("nexus.morning") === morningKey(); } catch { return false; } }
   function markMorning() { try { localStorage.setItem("nexus.morning", morningKey()); } catch { /* sin almacenamiento */ } }
-  function checkMorning() {
+  function briefingSlot() {
     const n = now();
-    const end = NIGHT_END[n.dow];
-    if (n.min < end || n.min > end + 60 || morningDone()) return;
-    if (document.hidden || document.querySelector(".ring") || document.body.classList.contains("night")) return;
-    markMorning();
-    api("/api/briefing?morning=1").then((j) => window.NexusVoice && window.NexusVoice.say(j.text)).catch(() => {});
+    const end = NIGHT_END[n.dow], start = NIGHT_START[n.dow];
+    if (n.min >= end && n.min < end + 180) return { kind: "morning", label: "Resumen de la mañana", icon: "sun", url: "/api/briefing?morning=1" };
+    if (n.min >= start - 120 && n.min < start) {
+      return n.dow === 0
+        ? { kind: "weekly", label: "Resumen de la semana", icon: "moon", url: "/api/briefing?weekly=1" }
+        : { kind: "evening", label: "Resumen de la noche", icon: "moon", url: "/api/briefing?evening=1" };
+    }
+    return null;
   }
-  setInterval(checkMorning, 30 * 1000);
-
-  // ---------- buenas noches ----------
-  // 15 minutos antes del modo noche: lo de mañana, el tiempo, la alarma y la luz barata.
-  const eveningKey = () => "evening." + fDay.format(new Date());
-  function checkEvening() {
-    const n = now();
-    const start = NIGHT_START[n.dow] - 15;
-    if (n.min < start || n.min > start + 10) return;
-    try { if (localStorage.getItem("nexus.evening") === eveningKey()) return; localStorage.setItem("nexus.evening", eveningKey()); } catch { return; }
-    if (document.hidden || document.querySelector(".ring") || document.body.classList.contains("night")) return;
-    // El domingo, el resumen de la semana que viene en lugar del de mañana
-    api(n.dow === 0 ? "/api/briefing?weekly=1" : "/api/briefing?evening=1").then((j) => window.NexusVoice && window.NexusVoice.say(j.text)).catch(() => {});
+  function playBriefing(slot) {
+    if (!window.NexusVoice) return;
+    if (slot.kind === "morning") markMorning();
+    api(slot.url).then((j) => window.NexusVoice.say(j.text)).catch(() => toast("No he podido preparar el resumen"));
   }
-  setInterval(checkEvening, 30 * 1000);
 
   // Gesto oculto: mantener pulsada la fecha 3 s abre los ajustes de Android
   (function systemGesture() {
@@ -660,6 +653,8 @@
     applyMode,
     wakePanel: () => wakePanel(false),
     markMorning: () => markMorning(),
+    briefingSlot: () => briefingSlot(),
+    playBriefing: (slot) => playBriefing(slot),
     refreshAgenda: () => fetchAgenda(),
     refreshAlarms: () => fetchAlarms(),
   };

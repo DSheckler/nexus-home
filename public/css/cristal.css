@@ -230,6 +230,8 @@ body[data-sky="night"] .sheet-wrap .btn.back { background: rgba(255, 255, 255, .
 .sheet-wrap .wx-col-p.wet { color: var(--acc); }
 .sheet-wrap .pw-cmp.good { color: var(--ok); }
 .sheet-wrap .pw-cmp.bad { color: var(--bad); }
+.sheet-wrap .pw-why { background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
+.app .card-s.why.up { color: var(--bad); } .app .card-s.why.down { color: var(--ok); }
 .sheet-wrap .note-del { color: var(--bad); }
 .sheet-wrap .row.voice.new .vtxt { color: var(--acc); }
 .sheet-wrap .vplay { background: var(--acc); color: #fff; }

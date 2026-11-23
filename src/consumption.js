@@ -131,11 +131,20 @@ async function monthCost(env, month, perDay, forced = null) {
     month, label: label(month), days: days.length, totalDays: total,
     kwh: round(kwh), energyKr: round(energy), fixedKr: round(fixed), kr: round(kr),
     perKwh: kwh ? round(energy / kwh, 2) : 0, missingDays: missing,
+    spot: round(avgSpot, 2),
     hasGridFee: fixedGrid > 0,
   };
 }
 
 const cache = new Map(); // isolate: el resumen vale 20 min
+
+// Spot medio de un mes completo (kr/kWh sin IVA): para explicar por qué sube o baja la factura
+async function monthSpot(env, month) {
+  const today = fKey.format(new Date());
+  const keys = Array.from({ length: daysIn(month) }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`).filter((k) => k < today);
+  const days = (await Promise.all(keys.map((k) => dayPrices(env, k, today).catch(() => null)))).filter(Boolean);
+  return days.length ? round(days.flat().reduce((a, b) => a + b, 0) / (days.length * 24), 2) : null;
+}
 
 // Contrato con el que comparar: el anterior al que se usa ese mes (p. ej. Billinge frente a
 // Cheap Energy). Así se ve cada mes si el cambio compensa.
@@ -172,6 +181,9 @@ export async function powerMonth(env) {
   current.forecastKr = current.days ? round(current.kr / (current.days - 1 + PROFILE.slice(0, Number(fHour.format(new Date())) + 1).reduce((a, b) => a + b, 0)) * current.totalDays) : 0;
   current.forecastKwh = round(rate.perDay * current.totalDays);
   current.basis = rate.basis;
+  const pm = prevMonth(month), ps = await monthSpot(env, pm).catch(() => null);
+  if (ps) current.prevSpot = { label: label(pm), spot: ps, ratio: current.spot ? round(current.spot / ps, 1) : null };
+  current.why = spotWhy(current);
   await withCompare(env, month, rate.perDay, current);
   const past = [];
   for (const r of readings.slice(-6).reverse()) {
@@ -190,5 +202,17 @@ export async function powerMonthText(env) {
   const last = past[0];
   const prev = last ? ` En ${last.label} fueron ${last.kwh} kilovatios hora, unas ${last.kr} coronas.` : " Cuando llegue la factura, apunta los kilovatios hora del mes y el cálculo será exacto.";
   const cmp = c.compare ? ` Con ${c.compare.name} habrían sido unas ${c.compare.forecastKr} coronas: ${c.compare.savedForecastKr >= 0 ? `ahorran unas ${c.compare.savedForecastKr}` : `pagan unas ${-c.compare.savedForecastKr} más`}.` : "";
-  return `Este mes llevamos unos ${c.kwh} kilovatios hora y unas ${c.kr} coronas de luz, contando la red y los impuestos. A este ritmo, el mes completo saldrá por unas ${c.forecastKr} coronas.${cmp} Es una estimación con ${c.basis}.${prev}`;
+  return `Este mes llevamos unos ${c.kwh} kilovatios hora y unas ${c.kr} coronas de luz, contando la red y los impuestos. A este ritmo, el mes completo saldrá por unas ${c.forecastKr} coronas.${spotWhy(c, true)}${cmp} Es una estimación con ${c.basis}.${prev}`;
+}
+
+// Por qué cambia: el spot medio de este mes frente al anterior (solo si la diferencia se nota)
+export function spotWhy(c, spoken = false) {
+  const p = c.prevSpot;
+  if (!p || !c.spot || !p.ratio || (p.ratio > 0.8 && p.ratio < 1.25)) return "";
+  const n = (x) => x.toFixed(2).replace(".", ",");
+  const prevM = p.label.split(" ")[0];
+  const how = p.ratio >= 1.8 ? `${String(p.ratio).replace(".", ",")} veces más caro que en ${prevM}` : p.ratio > 1 ? `más caro que en ${prevM} (${n(p.spot)})` : `más barato que en ${prevM} (${n(p.spot)})`;
+  return spoken
+    ? ` El precio de la electricidad en el mercado está este mes a ${n(c.spot)} coronas de media, ${how}.`
+    : `Spot medio del mes ${n(c.spot)} kr/kWh: ${how}` + (p.ratio >= 1.8 ? ` (${n(p.spot)})` : "") + ".";
 }

@@ -813,6 +813,8 @@ body.night .pills { display: none; }
 .pill.warn.orange { border-color: #e08a3c; background: rgba(224, 138, 60, .14); }
 .pill.warn.red { border-color: #e05a4e; background: rgba(224, 90, 78, .16); }
 .pill.garbage.soon { border-color: rgba(127, 191, 142, .6); }
+.pill.brief { border-color: rgba(232, 184, 106, .6); background: rgba(232, 184, 106, .12); --ic-bg: rgba(232, 184, 106, .3); --ic-fg: #f3d9a8; }
+.pill.brief.evening, .pill.brief.weekly { border-color: rgba(143, 176, 255, .55); background: rgba(143, 176, 255, .12); --ic-bg: rgba(143, 176, 255, .3); --ic-fg: #cddaff; }
 .pill.date { border-color: rgba(230, 120, 160, .5); --ic-bg: rgba(230, 120, 160, .3); --ic-fg: #f7c1d4; }
 .pill.garbage { border-color: rgba(127, 191, 142, .25); --ic-bg: rgba(127, 191, 142, .28); --ic-fg: #b4e6c0; }
 .media-pill { padding: .4rem .6rem .4rem .4rem; gap: 1rem; border-color: rgba(30, 215, 96, .35); background: linear-gradient(90deg, var(--tint, rgba(30, 215, 96, .10)), rgba(255, 255, 255, .04)); }
@@ -868,6 +870,8 @@ body.night .pills { display: none; }
 .pw-sel { flex: none; width: auto; }
 .pw-cmp { font-size: 1.7rem; margin: 0 0 1.4rem; padding: 1rem 1.4rem; border-radius: var(--r-md); background: rgba(255, 255, 255, .05); }
 .pw-cmp.good { color: #b4e6c0; } .pw-cmp.bad { color: #f0b3a8; }
+.pw-why { font-size: 1.7rem; margin: 0 0 1.4rem; padding: 1rem 1.4rem; border-radius: var(--r-md); background: rgba(232, 184, 106, .12); color: #f3d9a8; }
+.card-s.why.up { color: #f0b3a8; } .card-s.why.down { color: #b4e6c0; }
 
 /* Avisos nuevos de la franja */
 .pill.power-cheap { border-color: rgba(127, 191, 142, .6); background: rgba(127, 191, 142, .12); --ic-bg: rgba(127, 191, 142, .3); --ic-fg: #b4e6c0; }
