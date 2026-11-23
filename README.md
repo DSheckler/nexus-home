@@ -145,6 +145,15 @@ Mantiene la pantalla encendida, da permiso de micrófono y abre el panel a panta
    ```
 3. Instala `android\nexus.apk` en la tablet con `adb install -r`.
 
+La app también reproduce el sonido (voz, alarmas, avisos) con el reproductor nativo de Android y
+trae la voz de Google del sistema, gratis, para los textos largos y cuando se acaba la cuota de IA.
+Es importante en algunas tablets: con **Android 11 y WebView 140** (comprobado en una Galaxy Tab A
+SM-T515) la salida de audio de la página se corta a los pocos milisegundos y vuelve a abrirse sin
+parar. La voz sale a trozos y el micrófono graba audio deformado, con lo que el asistente «oye»
+cosas que nadie ha dicho. Para saber si te pasa, mira en `adb logcat` si aparece
+`AudioStreamLegacy: ... DISCONNECT ... due to device change` al sonar algo. Con la app 1.5 o
+posterior queda resuelto: el panel usa el reproductor nativo y lee el micrófono sin pasar por esa salida.
+
 ### Opcional: luces Shelly
 En la app Shelly Smart Control, ve a *Ajustes de usuario → Authorization cloud key*. Guarda la clave y el
 servidor como secretos `SHELLY_AUTH_KEY` y `SHELLY_SERVER`. Después registra los dispositivos con
