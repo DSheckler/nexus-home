@@ -26,10 +26,15 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   añade cosas a la lista, deja notas, abre Spotify o YouTube.
 - **Alarmas** con melodía suave que va creciendo, **temporizadores** con su propio sonido y rutina de
   buenos días: un resumen hablado con el tiempo, la agenda y recomendaciones (ropa, paraguas, luz barata).
+- **Resumen de la mañana y de la noche a petición**: NEXUS no habla por su cuenta. Al despertar y las 2 horas
+  antes del modo noche aparece un botón «Resumen de la mañana» / «Resumen de la noche» y se lee al tocarlo
+  (o diciendo «Oye NEXUS, resumen del día»).
 - **Precio real de la luz**: spot más red, impuesto, IVA y tu contrato, y aviso de la hora más barata para
   la lavadora.
 - **Gasto de luz del mes** sin contador conectado: NEXUS lo estima con tu consumo habitual y el precio de
   cada hora. Cuando llega la factura, apuntas los kWh del mes desde el móvil y el cálculo queda exacto.
+  Si el mes sale mucho más caro o más barato, la tarjeta dice por qué: el precio medio del mercado frente al
+  mes anterior («Mercado ×2,1 vs octubre»).
 - **Lista de la compra y notas** compartidas desde el móvil (sin instalar nada). Los cambios llegan al panel
   **al instante** (conexión en vivo por WebSocket), y una nota nueva suena con un aviso corto.
 - **Notas de voz**: se graban desde el móvil (hasta 1 minuto). En el panel aparecen como una tarjeta azul
@@ -39,7 +44,7 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
 - **Tareas de la casa** que se repiten (regar las plantas cada 3 días) con turnos que rotan solos.
 - **Modo invitados**: un QR en el panel (o un enlace desde el móvil) para que una visita use la lista
   y las notas durante 24 horas, sin ver nada más.
-- **Resumen de la semana** el domingo por la tarde: agenda, cumpleaños, basura, tareas, tiempo y luz.
+- **Resumen de la semana** el domingo por la tarde (botón «Resumen de la semana»): agenda, cumpleaños, basura, tareas, tiempo y luz.
 - **Aviso de luz barata o cara** en el panel y **comparación** del gasto con el contrato anterior.
 - **Menú de la semana** (panel, móvil y voz) que pasa los ingredientes a la lista, y **modo cocina**: la receta
   paso a paso a pantalla completa, manejada por voz («siguiente», «repite», «pon el temporizador»).
@@ -175,7 +180,7 @@ servidor como secretos `SHELLY_AUTH_KEY` y `SHELLY_SERVER`. Después registra lo
 - **Salir al sistema en la tablet:** mantén pulsada la fecha 3 segundos.
 - **Modo noche:** de domingo a jueves desde las 22:00, y los viernes y sábados desde las 00:00. Despierta a
   las 07:00 entre semana y a las 08:00 el fin de semana. El horario está en `public/js/app.js`
-  (`NIGHT_START` / `NIGHT_END`).
+  (`NIGHT_START` / `NIGHT_END`). Los botones de resumen salen en `briefingSlot()` del mismo archivo.
 - **Cuota gratuita de IA:** 10.000 neuronas al día, que se reinician a las 00:00 UTC. Desde el 70 % aparece
   un aviso en el panel.
 
