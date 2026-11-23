@@ -163,7 +163,11 @@ button:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
 .pbars { display: flex; align-items: flex-end; gap: 1px; height: 2.6rem; margin: .4rem 0 .2rem; }
 .pbars i { flex: 1; min-width: 2px; background: var(--line); border-radius: 1px; }
 .pbars i.low { background: #7fbf8e; }
-.pbars i.now { background: var(--sun); }
+.pbars i.now { background: var(--sun); position: relative; }
+/* Marca «ahora» encima de la barra de la hora actual (en los extremos, alineada al borde) */
+.pbars i.now.edge-l::before { left: 0; transform: none; }
+.pbars i.now.edge-r::before { left: auto; right: 0; transform: none; }
+.pbars i.now::before { content: "ahora"; position: absolute; bottom: calc(100% + .2rem); left: 50%; transform: translateX(-50%); font: 600 1.1rem/1 var(--font, inherit); font-style: normal; color: var(--sun); white-space: nowrap; }
 
 /* Widget de música */
 .media-card { flex-direction: row; align-items: center; gap: 1.4rem; max-width: 46rem; min-width: 34rem; border-color: rgba(30, 215, 96, .35); }
@@ -829,7 +833,7 @@ body.night .pills { display: none; }
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; }
 .tiles .card { min-width: 0; max-width: none; padding: 1.1rem 1.4rem; gap: .5rem; }
 .tiles .card-v { font-size: 3rem; }
-.tiles .pbars { height: 2rem; margin: .2rem 0 0; }
+.tiles .pbars { height: 2rem; margin: 1.3rem 0 0; }
 .tiles .card-b { flex: 1; }
 .tiles .card-b > .card-s:last-child { margin-top: auto; padding-top: .3rem; font-size: 1.4rem; }
 .card .badge { margin-left: auto; min-width: 2.8rem; text-align: center; font-size: 1.5rem; font-weight: 600; padding: .1rem .8rem; border-radius: 999px; background: var(--ic-bg); color: var(--ic-fg); }

@@ -42,8 +42,10 @@
     const max = Math.max(...p.hours.map((x) => x.sek), 0.01);
     const min = Math.min(...p.hours.map((x) => x.sek));
     const bars = N.h("span", { class: "pbars", "aria-hidden": "true" }, ...p.hours.map((x) =>
-      N.h("i", { class: (x.h === p.now.h ? "now " : "") + (x.sek === min ? "low" : ""), style: `height:${Math.max(8, (x.sek / max) * 100)}%` })));
-    let sub = p.cheapestRest && p.cheapestRest.h !== p.now.h ? `Más barata a las ${p.cheapestRest.h}:00` : "Ahora es lo más barato";
+      // La barra de ahora lleva la marca «ahora»; la verde (hora más barata) solo si se paga por horas
+      N.h("i", { class: (x.h === p.now.h ? "now " + (Number(x.h) < 2 ? "edge-l " : Number(x.h) > 21 ? "edge-r " : "") : "") + (p.hourlyContract && x.sek === min ? "low" : ""), style: `height:${Math.max(8, (x.sek / max) * 100)}%` })));
+    let sub = !p.hourlyContract ? "Pagas la media del mes"
+      : p.cheapestRest && p.cheapestRest.h !== p.now.h ? `Más barata a las ${p.cheapestRest.h}:00` : "Ahora es lo más barato";
     // Si el gasto del mes sube o baja mucho por el precio del mercado, la tarjeta dice por qué
     const m0 = data.powerMonth && data.powerMonth.current;
     const r = m0 && m0.why && m0.prevSpot ? m0.prevSpot.ratio : null;
