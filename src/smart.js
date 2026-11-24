@@ -243,11 +243,34 @@ function normalizeRecipe(j) {
   return { title: clip(j.titulo, 80) || "Receta", servings: Number(j.personas) || null, ingredients: (Array.isArray(j.ingredientes) ? j.ingredientes : []).slice(0, 40).map((s) => clip(s, 100)).filter(Boolean), steps };
 }
 
-export async function recipeFromUrl(env, rawUrl) {
+// Solo páginas públicas: nada de direcciones internas, IP privadas ni puertos raros
+function safeUrl(raw) {
   let url;
-  try { url = new URL(String(rawUrl || "").trim()); } catch { throw new Error("El enlace no es válido"); }
+  try { url = new URL(String(raw || "").trim()); } catch { throw new Error("El enlace no es válido"); }
   if (!/^https?:$/.test(url.protocol)) throw new Error("El enlace debe empezar por http o https");
-  const res = await fetch(url.toString(), { headers: { "User-Agent": "Mozilla/5.0 (NEXUS Home recetas)", Accept: "text/html" }, redirect: "follow", cf: { cacheTtl: 3600 } }).catch(() => null);
+  if (url.port && !["80", "443"].includes(url.port)) throw new Error("El enlace no es válido");
+  const h = url.hostname.toLowerCase().replace(/\.$/, "");
+  const ipv4 = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  const privV4 = ipv4 && (() => { const [a, b] = [+ipv4[1], +ipv4[2]]; return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224; })();
+  const v6 = h.startsWith("[") || h.includes(":");
+  if (!h.includes(".") || privV4 || v6 || /(^|\.)(localhost|local|internal|lan|home|intranet)$/.test(h)) throw new Error("Solo se pueden abrir páginas públicas");
+  return url;
+}
+
+// Sigue las redirecciones a mano (como mucho 5) revisando cada destino
+async function fetchPublic(raw) {
+  let url = safeUrl(raw);
+  for (let hop = 0; hop < 5; hop++) {
+    const res = await fetch(url.toString(), { headers: { "User-Agent": "Mozilla/5.0 (NEXUS Home recetas)", Accept: "text/html" }, redirect: "manual", cf: { cacheTtl: 3600 } }).catch(() => null);
+    if (!res) return null;
+    if (res.status >= 300 && res.status < 400 && res.headers.get("Location")) { url = safeUrl(new URL(res.headers.get("Location"), url).toString()); continue; }
+    return res;
+  }
+  return null;
+}
+
+export async function recipeFromUrl(env, rawUrl) {
+  const res = await fetchPublic(rawUrl);
   if (!res || !res.ok) throw new Error("No pude abrir esa página");
   const html = (await res.text()).slice(0, 1500000);
   const ld = findRecipeLd(html);
