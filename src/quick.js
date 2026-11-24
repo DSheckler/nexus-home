@@ -120,6 +120,15 @@ const INTENTS = [
   timerIntent(/^(avisame|recuerdame|llamame) (en|dentro de) (.+?)( para (.+))?$/, 3, 5),
   timerIntent(/^(temporizador|timer|cronometro) (de )?(.+?)( para (.+))?$/, 3, 5),
 
+  // ---------- tele (la tablet manda la orden a la TV Box) ----------
+  { re: /^(enciende|prende|encender|prender) (la )?(tele|television|tv)$/, run: async (m, env, changed) => { changed.tv = { action: "on" }; return "Encendiendo la tele."; } },
+  { re: /^(apaga|apagar) (la )?(tele|television|tv)$/, run: async (m, env, changed) => { changed.tv = { action: "off" }; return "Apagando la tele."; } },
+  { re: /^(pausa|pausar|para|deten|reanuda|continua|sigue|play|dale play)( (la )?(tele|television|tv|video|pelicula|serie|youtube|netflix))?$/, run: async (m, env, changed) => { if (!m[2] && !/pausa|reanuda|play/.test(m[1])) return null; changed.tv = { action: "playpause" }; return /reanuda|continua|sigue|play/.test(m[1]) ? "Listo." : "Pausado."; } },
+  { re: /^(sube|subele|subir|baja|bajale|bajar) (el )?(volumen|sonido)( de la (tele|television|tv))?( un poco| mucho| harto)?$/, run: async (m, env, changed) => { const up = /^sub/.test(m[1]); const n = /mucho|harto/.test(m[6] || "") ? 5 : 2; changed.tv = { action: up ? "volup" : "voldown", arg: n }; return up ? "Subiendo el volumen." : "Bajando el volumen."; } },
+  { re: /^(silencia|silenciar|mutea|mutear|quita el sonido( de)?) (la )?(tele|television|tv)$|^silencio en la tele$/, run: async (m, env, changed) => { changed.tv = { action: "mute" }; return "Tele en silencio."; } },
+  { re: /^(pon|abre|abrir|poner) (el |la )?(youtube music|youtube|netflix|disney( plus)?|disney\+)( en la (tele|television|tv))$|^(pon|abre) (el |la )?(netflix|disney( plus)?)$/, run: async (m, env, changed) => { const t = m[3] || m[9] || ""; const app = /music/.test(t) ? "music" : /youtube/.test(t) ? "youtube" : /netflix/.test(t) ? "netflix" : "disney"; changed.tv = { action: "app", arg: app }; return `Abriendo ${{ music: "YouTube Music", youtube: "YouTube", netflix: "Netflix", disney: "Disney+" }[app]} en la tele.`; } },
+  { re: /^(busca|pon|buscar) (.+?) en (youtube( en la tele)?|la tele)$/, run: async (m, env, changed) => { const q = originalTail(ORIGINAL.text, m[2] + " en " + m[3]).replace(/\s+en\s+(youtube|la tele).*$/i, "").trim(); if (!q) return null; changed.tv = { action: "search", arg: q }; return `Buscando ${q} en YouTube.`; } },
+
   // ---------- quién está en casa y recados ----------
   {
     re: /^(quien|quienes) (esta|estan|hay) en (la )?casa$|^(hay alguien|esta alguien) en (la )?casa$/,

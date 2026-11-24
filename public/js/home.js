@@ -784,6 +784,7 @@
       N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openSchool) }, "Colegio"),
       N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openAbroad) }, "Familia lejos"),
       N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openVacation) }, "Vacaciones"),
+      window.NexusTV && window.NexusTV.available() ? N.h("button", { class: "btn ghost", type: "button", onclick: () => window.NexusTV.open() }, "Tele") : null,
       sensorButton());
   }
   // Sensor de presencia (cámara): solo en la app de la tablet
@@ -1224,6 +1225,6 @@
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   }
 
-  window.NexusHome = { init, refresh, openWarn, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, fitLayout, settings: () => (data && data.settings) || {},
+  window.NexusHome = { init, refresh, openWarn, openSheet: (...a) => { backTo = openHouse; return openSheet(...a); }, openList, openMusic, openHouse, openApp, openChores, openMenu: openMenuFresh, vacationActive, fitLayout, settings: () => (data && data.settings) || {},
     timers: () => ((data && data.timers) || []).map((t) => ({ ...t, endsAt: t.endsAt + (data.skew || 0) })) };
 })();

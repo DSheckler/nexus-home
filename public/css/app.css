@@ -820,6 +820,9 @@ body.night .pills { display: none; }
 .pill.presence { border-color: rgba(127, 191, 142, .5); --ic-bg: rgba(127, 191, 142, .28); --ic-fg: #b4e6c0; }
 .pill.presence.empty { border-color: var(--line); --ic-bg: rgba(255, 255, 255, .08); --ic-fg: var(--muted); }
 .pill.errand { border-color: rgba(143, 176, 255, .55); --ic-bg: rgba(143, 176, 255, .3); --ic-fg: #cddaff; }
+.tv-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 1rem; margin: 0 0 1.2rem; }
+.tv-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; max-width: 42rem; margin: 0 auto 1.2rem; }
+.tv-k { min-height: 6rem; font-size: 1.9rem; }
 .shop-sug { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin: 0 0 1.4rem; }
 .shop-sug-t { font-size: 1.6rem; color: var(--muted); }
 .shop-sug .pill.sug { min-width: 0; padding: .5rem 1.4rem; font-size: 1.6rem; border-style: dashed; }

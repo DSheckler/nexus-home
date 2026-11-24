@@ -165,6 +165,7 @@
       return;
     }
     if (ck && ck.start && window.NexusCook) window.NexusCook.start(ck.start, { silent: true });
+    if (j.changed && j.changed.tv && window.NexusTV) window.NexusTV.fromVoice(j.changed.tv);
     history.push({ role: "user", text }, { role: "assistant", text: j.reply });
     history = history.slice(-8);
     lastTurnAt = Date.now();

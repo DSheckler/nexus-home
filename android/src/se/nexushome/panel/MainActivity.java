@@ -169,6 +169,109 @@ public class MainActivity extends Activity {
 
     /** Interfaz para la página: window.NexusAndroid */
     private class Bridge {
+        // ---------- Tele: órdenes a la TV Box Android por ADB en la red de la casa ----------
+        // Solo órdenes de una lista fija (teclas, apps conocidas, búsqueda en YouTube): la página
+        // no puede ejecutar comandos libres en la TV Box.
+        private final AdbClient adb = new AdbClient(MainActivity.this);
+        private final java.util.concurrent.ExecutorService tvPool = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+        private String tvShell(String action, String arg) {
+            String key;
+            switch (action) {
+                case "on": return "input keyevent KEYCODE_WAKEUP; sleep 1; cmd hdmi_control onetouchplay";
+                case "off": return "input keyevent KEYCODE_SLEEP";
+                case "volup": case "voldown": {
+                    int n = 1;
+                    try { n = Math.max(1, Math.min(10, Integer.parseInt(arg))); } catch (Exception e) { /* 1 */ }
+                    String k = action.equals("volup") ? "KEYCODE_VOLUME_UP" : "KEYCODE_VOLUME_DOWN";
+                    StringBuilder b = new StringBuilder();
+                    for (int i = 0; i < n; i++) b.append(i > 0 ? "; " : "").append("input keyevent ").append(k);
+                    return b.toString();
+                }
+                case "mute": key = "KEYCODE_VOLUME_MUTE"; break;
+                case "playpause": key = "KEYCODE_MEDIA_PLAY_PAUSE"; break;
+                case "home": key = "KEYCODE_HOME"; break;
+                case "back": key = "KEYCODE_BACK"; break;
+                case "up": key = "KEYCODE_DPAD_UP"; break;
+                case "down": key = "KEYCODE_DPAD_DOWN"; break;
+                case "left": key = "KEYCODE_DPAD_LEFT"; break;
+                case "right": key = "KEYCODE_DPAD_RIGHT"; break;
+                case "ok": key = "KEYCODE_DPAD_CENTER"; break;
+                case "state": return "dumpsys power | grep -m1 mWakefulness=";
+                case "app": {
+                    String pkg;
+                    switch (arg == null ? "" : arg) {
+                        case "youtube": pkg = "com.google.android.youtube.tv"; break;
+                        case "netflix": pkg = "com.netflix.ninja"; break;
+                        case "disney": pkg = "com.disney.disneyplus"; break;
+                        case "music": pkg = "com.google.android.youtube.tvmusic"; break;
+                        case "spotify": pkg = "com.spotify.tv.android"; break;
+                        default: return null;
+                    }
+                    return "monkey -p " + pkg + " -c android.intent.category.LEANBACK_LAUNCHER 1";
+                }
+                case "search": {
+                    String q = arg == null ? "" : arg.replaceAll("[^\\p{L}\\p{N} ]", " ").trim();
+                    if (q.isEmpty() || q.length() > 80) return null;
+                    String enc;
+                    try { enc = java.net.URLEncoder.encode(q, "UTF-8").replace("+", "%20"); } catch (Exception e) { return null; }
+                    return "am start -a android.intent.action.VIEW -d 'https://www.youtube.com/results?search_query=" + enc + "' com.google.android.youtube.tv";
+                }
+                default: return null;
+            }
+            return "input keyevent " + key;
+        }
+
+        private boolean privateIp(String h) {
+            return h != null && h.matches("^(10\\.\\d{1,3}|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.\\d{1,3}\\.\\d{1,3}$");
+        }
+
+        private void tvDone(String id, boolean ok, String text) {
+            String safe = id.replaceAll("[^A-Za-z0-9_-]", "");
+            String json = JSONObject.quote(text == null ? "" : text);
+            runOnUiThread(() -> web.evaluateJavascript("window.NexusTV&&NexusTV.done('" + safe + "'," + ok + "," + json + ")", null));
+        }
+
+        @JavascriptInterface
+        public boolean tvCommand(final String host, final String action, final String arg, final String id) {
+            final String cmd = tvShell(action, arg);
+            if (cmd == null || !privateIp(host)) return false;
+            tvPool.execute(() -> {
+                try { tvDone(id, true, adb.shell(host, 5555, cmd, 8000)); }
+                catch (Exception e) { tvDone(id, false, String.valueOf(e.getMessage())); }
+            });
+            return true;
+        }
+
+        // Busca la TV Box en la red (puerto 5555 abierto) y devuelve su IP
+        @JavascriptInterface
+        public void tvFind(final String id) {
+            new Thread(() -> {
+                String found = "";
+                try {
+                    WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+                    int ip = wm.getConnectionInfo().getIpAddress();
+                    String base = (ip & 0xff) + "." + ((ip >> 8) & 0xff) + "." + ((ip >> 16) & 0xff) + ".";
+                    final String[] hit = {null};
+                    java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(32);
+                    for (int i = 1; i < 255; i++) {
+                        final String h = base + i;
+                        pool.execute(() -> {
+                            if (hit[0] != null) return;
+                            try (java.net.Socket s = new java.net.Socket()) {
+                                s.connect(new java.net.InetSocketAddress(h, 5555), 400);
+                                synchronized (hit) { if (hit[0] == null) hit[0] = h; }
+                            } catch (Exception e) { /* nada en esa IP */ }
+                        });
+                    }
+                    pool.shutdown();
+                    pool.awaitTermination(15, java.util.concurrent.TimeUnit.SECONDS);
+                    if (hit[0] != null) found = hit[0];
+                } catch (Exception e) { /* sin Wi-Fi */ }
+                tvDone(id, !found.isEmpty(), found);
+            }).start();
+        }
+
         @JavascriptInterface
         public void setBrightness(final float value) {
             // value 0..1; negativo = brillo automático del sistema
@@ -188,7 +291,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() {
-            return "1.7";
+            return "1.8";
         }
 
         // ---------- Sonido con el reproductor nativo ----------

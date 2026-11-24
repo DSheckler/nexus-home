@@ -695,6 +695,7 @@
   if (window.NexusWake && window.NexusVoice) window.NexusWake.init(window.NEXUS, window.NexusVoice);
   if (window.NexusHome) window.NexusHome.init(window.NEXUS);
   if (window.NexusSensor) window.NexusSensor.init(window.NEXUS);
+  if (window.NexusTV) window.NexusTV.init(window.NEXUS);
   if (window.NexusCook) window.NexusCook.init(window.NEXUS);
   if (window.NexusWeather) window.NexusWeather.init(window.NEXUS);
   if (window.NexusAgenda) window.NexusAgenda.init(window.NEXUS);

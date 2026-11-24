@@ -44,6 +44,11 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   Small 3.1, dentro de la cuota gratuita). «Oye NEXUS, ¿cuánto llevamos en el súper?».
 - **Recetas desde un enlace o una foto**: se abren paso a paso en el modo cocina de la tablet, traducidas al
   español si vienen en sueco o inglés. Las páginas con datos de receta (schema.org) no gastan IA.
+- **Control de la tele** (app Android 1.8): la tablet manda órdenes a una TV Box Android/Google TV de la casa por
+  ADB en la red (hay que activar la depuración por red en la TV Box y aceptar la tablet una vez). Encender/apagar
+  la tele por HDMI-CEC, volumen, pausa, abrir YouTube/Netflix/Disney+ y buscar en YouTube. En Casa → Tele hay un
+  control remoto, y por voz: «Oye NEXUS, pon YouTube en la tele», «busca recetas de empanadas en YouTube».
+  La página solo puede pedir órdenes de una lista fija; la TV Box se busca sola en la red.
 - **Fondo de aurora boreal**: cuando NOAA prevé auroras (Kp alto) y el cielo está despejado, el cielo animado muestra
   cortinas de aurora detrás del cristal (y un resplandor verde quieto en el modo noche). Vista previa: `?aurora=1`.
 - **Sensor de presencia** (app Android 1.7): la cámara frontal detecta movimiento en la propia tablet, sin guardar

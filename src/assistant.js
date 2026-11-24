@@ -159,6 +159,11 @@ function buildTools(env, changed) {
       parameters: S({ articulos: { type: "array", items: { type: "string" } } }, ["articulos"]),
       run: async (a) => { const l = await H.addShopping(env, a.articulos); changed.home = true; return { articulos_en_lista: l.length }; },
     },
+    tele: {
+      description: "Controla la tele del living a través de la TV Box: encender, apagar, volumen, pausa, abrir YouTube/Netflix/Disney+/YouTube Music o buscar en YouTube.",
+      parameters: S({ accion: { type: "string", enum: ["on", "off", "volup", "voldown", "mute", "playpause", "home", "app", "search"] }, valor: { type: "string", description: "app: youtube|netflix|disney|music; search: lo que se busca; volumen: cuántos pasos (1-10)" } }, ["accion"]),
+      run: async (a) => { changed.tv = { action: a.accion, arg: a.valor || "" }; return { enviado: true }; },
+    },
     dejar_recado: {
       description: "Deja un recado para alguien de la familia que se muestra en el panel cuando llegue a casa (\"cuando llegue Ana dile que…\"). Si ya está en casa, se deja al tiro como nota.",
       parameters: S({ para: { type: "string", description: "Nombre de la persona" }, texto: { type: "string" } }, ["para", "texto"]),
