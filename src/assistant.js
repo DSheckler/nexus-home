@@ -9,6 +9,7 @@ import { listAlarms, createAlarm, updateAlarm, deleteAlarm } from "./alarms.js";
 import * as H from "./household.js";
 import * as P from "./planner.js";
 import * as L from "./life.js";
+import * as SM from "./smart.js";
 import { getWeeklyBriefing } from "./weekly.js";
 import { householdContext, getBriefing, planCheapPower, runRoutine } from "./extras.js";
 
@@ -157,6 +158,21 @@ function buildTools(env, changed) {
       description: "Agrega uno o varios artículos a la lista de compras compartida.",
       parameters: S({ articulos: { type: "array", items: { type: "string" } } }, ["articulos"]),
       run: async (a) => { const l = await H.addShopping(env, a.articulos); changed.home = true; return { articulos_en_lista: l.length }; },
+    },
+    dejar_recado: {
+      description: "Deja un recado para alguien de la familia que se muestra en el panel cuando llegue a casa (\"cuando llegue Ana dile que…\"). Si ya está en casa, se deja al tiro como nota.",
+      parameters: S({ para: { type: "string", description: "Nombre de la persona" }, texto: { type: "string" } }, ["para", "texto"]),
+      run: async (a) => { const r = await SM.addErrand(env, { to: a.para, text: a.texto }); changed.home = true; return { entregado_ya: r.now }; },
+    },
+    quien_en_casa: {
+      description: "Quién está en casa según los avisos de los celulares (llegó / salió y a qué hora).",
+      parameters: S({}),
+      run: async () => Object.entries(await SM.getPresence(env)).map(([n, p]) => ({ nombre: n, en_casa: p.home, desde: new Date(p.at).toISOString() })),
+    },
+    gasto_super: {
+      description: "Gasto en el supermercado este mes y el anterior, según las boletas fotografiadas.",
+      parameters: S({}),
+      run: async () => { const r = await SM.receiptsSummary(env); return { este_mes: r.current, mes_anterior: r.previous }; },
     },
     ver_compra: {
       description: "Lista de compras actual.",

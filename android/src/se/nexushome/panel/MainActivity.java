@@ -82,9 +82,11 @@ public class MainActivity extends Activity {
         createWebView();
         web.loadUrl(startUrl(getIntent()));
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
-        }
+        // Micrófono ("Oye NEXUS") y cámara (sensor de presencia)
+        java.util.List<String> need = new java.util.ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.RECORD_AUDIO);
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.CAMERA);
+        if (!need.isEmpty()) requestPermissions(need.toArray(new String[0]), REQ_MIC);
     }
 
     // Vinculación inicial: adb shell am start ... --es pair <clave>
@@ -114,10 +116,15 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
-                // Solo nuestro panel puede usar el micrófono
+                // Solo nuestro panel puede usar el micrófono y la cámara
                 Uri origin = request.getOrigin();
                 if (origin != null && HOST.equals(origin.getHost())) {
-                    runOnUiThread(() -> request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE}));
+                    java.util.List<String> ok = new java.util.ArrayList<>();
+                    for (String r : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r) || PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) ok.add(r);
+                    }
+                    if (ok.isEmpty()) runOnUiThread(request::deny);
+                    else runOnUiThread(() -> request.grant(ok.toArray(new String[0])));
                 } else {
                     request.deny();
                 }
@@ -181,7 +188,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() {
-            return "1.6";
+            return "1.7";
         }
 
         // ---------- Sonido con el reproductor nativo ----------

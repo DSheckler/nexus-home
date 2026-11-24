@@ -17,12 +17,13 @@ import * as P from "./planner.js";
 import { getWeeklyBriefing } from "./weekly.js";
 import * as L from "./life.js";
 import { getAir, getAurora } from "./outdoor.js";
+import * as S from "./smart.js";
 import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush.js";
 
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.23.0";
+const VERSION = "1.24.1";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -33,9 +34,12 @@ async function homeSnapshot(env) {
     safe(P.listReminders(env)), safe(P.listChores(env)), safe(L.listPlants(env)), safe(L.getMenu(env, 2)), safe(L.schoolSummary(env)),
     safe(L.getAbroad(env)), safe(getAir(env)), safe(getAurora(env)),
   ]);
+  const [presence, errands, shopSuggest, receipts] = await Promise.all([
+    safe(S.getPresence(env)), safe(S.listErrands(env)), safe(S.shoppingSuggestions(env, shopping)), safe(S.receiptsSummary(env)),
+  ]);
   const ai = { used: await getUsage(env).catch(() => 0), free: DAILY_FREE };
   const season = L.seasonNotices(7);
-  return { timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, plants, menu, school, abroad, air, aurora, season, ai, now: Date.now() };
+  return { timers, shopping, notes, garbage, power, warnings, settings, dates, reminders, chores, plants, menu, school, abroad, air, aurora, season, ai, presence, errands, shopSuggest, receipts: receipts && { current: receipts.current, previous: receipts.previous }, now: Date.now() };
 }
 
 const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // ~1 minuto de voz comprimida
@@ -162,7 +166,7 @@ async function scopeOf(request, env) {
   if (await P.isGuest(env, key)) return "guest";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor|warnings)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?)$/i;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor|warnings)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?|presence|errands(\/[a-z0-9]{1,20})?|receipts(\/[a-z0-9]{1,20})?|recipe(\/photo)?)$/i;
 // Invitados: solo la lista de compras y las notas de texto
 const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
@@ -396,7 +400,7 @@ async function handleApi(request, env, url, ctx) {
   // Lista de compras (cada cambio se avisa al momento a las pantallas)
   const shopDone = (items, status = 200) => { notify(env, ctx, { type: "shopping", items }); return json({ ok: true, items }, status); };
   if (path === "/api/shopping") {
-    if (method === "GET") return json({ ok: true, items: await H.listShopping(env) });
+    if (method === "GET") { const items = await H.listShopping(env); return json({ ok: true, items, suggest: await S.shoppingSuggestions(env, items).catch(() => []) }); }
     if (method === "POST") return shopDone(await H.addShopping(env, (await body(request)).text));
   }
   mt = path.match(/^\/api\/shopping\/([a-z0-9]{1,20})$/);
@@ -427,6 +431,63 @@ async function handleApi(request, env, url, ctx) {
   }
   mt = path.match(/^\/api\/notes\/([a-z0-9]{1,20})$/);
   if (mt && method === "DELETE") return notesDone(await H.deleteNote(env, mt[1]));
+
+  // Quién está en casa (Atajos del iPhone o botón del celular) y recados al llegar
+  if (path === "/api/presence") {
+    if (method === "GET") return json({ ok: true, presence: await S.getPresence(env) });
+    if (method === "POST") {
+      const b = await body(request);
+      const r = await S.setPresence(env, b.who || b.quien, b.state || b.estado);
+      notify(env, ctx, { type: "presence", presence: r.presence, arrived: r.arrived ? r.name : null });
+      if (r.delivered.length) { const notes = await H.listNotes(env); notify(env, ctx, { type: "notes", notes, added: r.delivered[0].id }); notify(env, ctx, { type: "errands", errands: await S.listErrands(env) }); }
+      return json({ ok: true, ...r });
+    }
+  }
+  if (path === "/api/errands") {
+    if (method === "GET") return json({ ok: true, errands: await S.listErrands(env) });
+    if (method === "POST") {
+      const r = await S.addErrand(env, await body(request));
+      if (r.now) notify(env, ctx, { type: "notes", notes: await H.listNotes(env), added: r.note.id });
+      else notify(env, ctx, { type: "errands", errands: r.errands });
+      return json({ ok: true, ...r }, 201);
+    }
+  }
+  mt = path.match(/^\/api\/errands\/([a-z0-9]{1,20})$/);
+  if (mt && method === "DELETE") { const errands = await S.deleteErrand(env, mt[1]); notify(env, ctx, { type: "errands", errands }); return json({ ok: true, errands }); }
+
+  // Boletas del súper (foto desde el celular → total del mes)
+  const imageBody = async () => {
+    if (Number(request.headers.get("Content-Length") || 0) > S.MAX_IMAGE) throw new Error("La foto es demasiado grande");
+    return { image: await request.arrayBuffer(), mime: (request.headers.get("Content-Type") || "").split(";")[0] };
+  };
+  if (path === "/api/receipts") {
+    if (method === "GET") return json({ ok: true, ...(await S.receiptsSummary(env)) });
+    if (method === "POST") {
+      const { image, mime } = await imageBody();
+      let from = ""; try { from = decodeURIComponent(request.headers.get("X-From") || ""); } catch { /* sin nombre */ }
+      const receipt = await S.addReceipt(env, image, mime, from);
+      const summary = await S.receiptsSummary(env);
+      notify(env, ctx, { type: "receipts", receipts: { current: summary.current, previous: summary.previous } });
+      return json({ ok: true, receipt, ...summary }, 201);
+    }
+  }
+  mt = path.match(/^\/api\/receipts\/([a-z0-9]{1,20})$/);
+  if (mt && method === "DELETE") {
+    await S.deleteReceipt(env, mt[1]);
+    const summary = await S.receiptsSummary(env);
+    notify(env, ctx, { type: "receipts", receipts: { current: summary.current, previous: summary.previous } });
+    return json({ ok: true, ...summary });
+  }
+
+  // Recetas desde un enlace o una foto: se abren en el modo cocina de la tablet
+  if ((path === "/api/recipe" || path === "/api/recipe/photo") && method === "POST") {
+    let recipe;
+    if (path === "/api/recipe") recipe = await S.recipeFromUrl(env, (await body(request)).url);
+    else { const { image, mime } = await imageBody(); recipe = await S.recipeFromPhoto(env, image, mime); }
+    await env.NEXUS_KV.put("recipe:last", JSON.stringify(recipe), { expirationTtl: 7 * 86400 });
+    notify(env, ctx, { type: "cook", recipe }, ["full"]);
+    return json({ ok: true, recipe });
+  }
 
   // Casa (Shelly)
   if (path === "/api/devices") {

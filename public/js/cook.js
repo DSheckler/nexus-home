@@ -47,7 +47,7 @@
     if (!recipe) return;
     if (cmd === "next") {
       if (idx < recipe.steps.length - 1) { idx++; render(); say(stepText()); }
-      else say("Ese era el último paso. ¡Que aproveche!");
+      else say("Ese era el último paso. ¡Buen provecho!");
     } else if (cmd === "prev") {
       if (idx > 0) { idx--; render(); }
       say(stepText());
@@ -72,7 +72,7 @@
   function end(withVoice) {
     if (el) el.remove();
     el = null; recipe = null;
-    if (withVoice) say("¡Que aproveche!");
+    if (withVoice) say("¡Buen provecho!");
   }
 
   function init(ctx) { N = ctx; }

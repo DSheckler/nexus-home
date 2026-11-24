@@ -1,6 +1,8 @@
 // Datos de la casa guardados en Cloudflare KV:
 // temporizadores, lista de compras, notas familiares y calendario de recogida de basura.
 
+import { recordShopping } from "./smart.js";
+
 const TZ = "Europe/Stockholm";
 const fKey = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -55,6 +57,7 @@ export async function addShopping(env, items) {
   }
   if (list.length > 80) throw new Error("La lista está llena (80 artículos)");
   await putList(env, "shopping", list);
+  await recordShopping(env, [].concat(items)).catch(() => {}); // para sugerir lo que se compra seguido
   return list;
 }
 

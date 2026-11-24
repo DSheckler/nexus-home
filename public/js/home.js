@@ -138,7 +138,7 @@
       data.powerMonth && data.powerMonth.current && [data.powerMonth.current.kr, data.powerMonth.current.why],
       data.reminders, data.chores, data.power && data.power.hourlyContract,
       data.plants, data.menu, data.school, data.aurora && [data.aurora.chance, data.aurora.when], data.air, data.season,
-      data.settings && data.settings.vacation, data.abroad, hourNow(), N.briefingSlot && (N.briefingSlot() || {}).kind,
+      data.settings && data.settings.vacation, data.abroad, hourNow(), data.presence, data.errands, N.briefingSlot && (N.briefingSlot() || {}).kind,
     ]);
   }
 
@@ -185,9 +185,22 @@
       chips.push(chip("date", "cake", (d.inDays === 0 ? "Hoy: " : "Mañana: ") + kind + d.name + (d.age ? ` (${d.age})` : ""), () => N.toast(d.title)));
     }
     chips.push(...chorePills());
+    // Recados que esperan a que alguien llegue
+    const er = data.errands || [];
+    if (er.length) {
+      const who = [...new Set(er.map((e) => e.to))];
+      chips.push(chip("errand", "note", er.length === 1 ? `Recado para ${er[0].to} al llegar` : `${er.length} recados al llegar (${who.join(", ")})`, () => openErrands()));
+    }
     const ex = extraPills();
     chips.push(...ex.action);
     top.push(...ex.info);
+    // Quién está en casa (solo si algún celular avisa)
+    const pres = data.presence || {};
+    const known = Object.keys(pres);
+    if (known.length) {
+      const home = known.filter((n) => pres[n].home);
+      top.unshift(chip("presence" + (home.length ? "" : " empty"), "home", home.length ? home.join(", ") : "Nadie", () => openPresence()));
+    }
     const pp = powerPill();
     if (pp) chips.push(pp);
     const g = (data.garbage || [])[0];
@@ -270,7 +283,7 @@
     const body = N.h("span", { class: "card-b rows" },
       ...(rows.length ? rows : [N.h("span", { class: "row empty-row" }, "Lista vacía")]),
       N.h("span", { class: "card-s" }, more > 0 ? `+${more} más · toca para abrir` : "Toca para abrir la lista"));
-    return badge(card("shop", "Compra", body, openList, "cart"), pending.length);
+    return badge(card("shop", "Compras", body, openList, "cart"), pending.length);
   }
 
   // En la franja solo caben unas pocas: las primeras son las más importantes, y lo que
@@ -758,7 +771,21 @@
       N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openPlants) }, "Plantas"),
       N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openSchool) }, "Colegio"),
       N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openAbroad) }, "Familia lejos"),
-      N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openVacation) }, "Vacaciones"));
+      N.h("button", { class: "btn ghost", type: "button", onclick: goFrom(openHouse, openVacation) }, "Vacaciones"),
+      sensorButton());
+  }
+  // Sensor de presencia (cámara): solo en la app de la tablet
+  function sensorButton() {
+    const S = window.NexusSensor;
+    if (!S || !S.available()) return null;
+    const label = () => "Sensor de presencia: " + (S.enabled() ? "activado" : "apagado");
+    const b = N.h("button", { class: "btn ghost", type: "button", title: "La cámara frontal detecta si alguien se acerca (de noche sube un poco el brillo; de día atenúa la pantalla si no hay nadie). Las imágenes no salen de la tablet." }, label());
+    b.addEventListener("click", () => {
+      S.setEnabled(!S.enabled());
+      b.textContent = label();
+      N.toast(S.enabled() ? "Sensor activado: la imagen se analiza en la tablet y no se guarda" : "Sensor apagado: la cámara queda libre");
+    });
+    return b;
   }
 
   // ---------- paneles ----------
@@ -799,15 +826,52 @@
         const j = await N.api("/api/shopping/" + i.id, { method: "PATCH", body: { done: !i.done } }).catch(() => null);
         if (j) { data.shopping = j.items; render(); openList(); }
       } }, N.h("span", { class: "check", "aria-hidden": "true" }), i.text)));
+    // Sugerencias: lo que compran seguido y ya toca (se agrega con un toque)
+    const sug = ((data && data.shopSuggest) || []).filter((x) => !items.some((i) => !i.done && i.text.toLowerCase() === x.text.toLowerCase()));
+    const sugBox = sug.length ? N.h("div", { class: "shop-sug" }, N.h("span", { class: "shop-sug-t" }, "¿Se acabó?"),
+      ...sug.map((x) => N.h("button", { class: "pill sug", type: "button", title: `Lo compran cada ~${x.every} días; la última vez hace ${x.days}`, onclick: async () => {
+        const j = await N.api("/api/shopping", { method: "POST", body: { text: x.text } }).catch(() => null);
+        if (j) { data.shopping = j.items; data.shopSuggest = (data.shopSuggest || []).filter((y) => y !== x); render(); openList(); }
+      } }, "+ " + x.text))) : null;
+    const rc = data && data.receipts && data.receipts.current;
+    const rp = data && data.receipts && data.receipts.previous;
+    const spend = rc && rc.count ? N.h("p", { class: "shop-spend" }, `Súper en ${rc.label}: ~${rc.total.toLocaleString("es-CL")} kr con ${rc.count} ${rc.count === 1 ? "boleta" : "boletas"}` + (rp && rp.count ? ` · en ${rp.label}: ~${rp.total.toLocaleString("es-CL")} kr` : "") + ".")
+      : N.h("p", { class: "shop-spend muted" }, "Para ver el gasto del súper, saca una foto a la boleta desde el celular (Compras → Boleta).");
     openSheet("Lista de compras",
       N.h("p", { class: "sheet-sub" }, "También por voz: «Oye NEXUS, agrega café a la lista»."),
+      sugBox,
       rows.length ? N.h("ul", { class: "shop-list" }, ...rows) : N.h("p", { class: "empty" }, "La lista está vacía."),
       form,
+      spend,
       N.h("div", { class: "sheet-foot" },
         N.h("button", { class: "btn ghost", type: "button", onclick: async () => {
           const j = await N.api("/api/shopping/comprados", { method: "DELETE" }).catch(() => null);
           if (j) { data.shopping = j.items; render(); openList(); }
         } }, "Quitar comprados"), N.h("span")));
+  }
+
+  // Quién está en casa: llegó / salió y a qué hora
+  const hm = (t) => new Date(t).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+  function openPresence() {
+    const pres = (data && data.presence) || {};
+    const rows = Object.entries(pres).map(([n, p]) => N.h("li", { class: "note-row" },
+      N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, n), N.h("span", { class: "note-meta" }, (p.home ? "En casa desde las " : "Salió a las ") + hm(p.at) + (Date.now() - p.at > 86400000 ? " (hace más de un día)" : "")))));
+    openSheet("Quién está en casa",
+      N.h("p", { class: "sheet-sub" }, "Cada celular avisa al llegar y al salir (Atajo del iPhone o botón «Llegué / Salí» del celular). Solo se guarda «en casa» o «fuera», nunca la ubicación."),
+      N.h("ul", { class: "note-list short" }, ...rows),
+      N.h("p", { class: "sheet-sub" }, "Recados: «Oye NEXUS, cuando llegue Ana dile que pasó el cartero»."));
+  }
+  function openErrands() {
+    const er = (data && data.errands) || [];
+    const rows = er.map((e) => N.h("li", { class: "note-row" },
+      N.h("span", { class: "note-main" }, N.h("span", { class: "note-text" }, e.text), N.h("span", { class: "note-meta" }, "Para " + e.to + " al llegar" + (e.from ? " · de " + e.from : ""))),
+      N.h("button", { class: "btn ghost note-del", type: "button", onclick: async () => {
+        const j = await N.api("/api/errands/" + e.id, { method: "DELETE" }).catch(() => null);
+        if (j) { data.errands = j.errands; render(); if (j.errands.length) openErrands(); else closeSheet(); }
+      } }, "Quitar")));
+    openSheet("Recados al llegar",
+      N.h("p", { class: "sheet-sub" }, "Se muestran como nota en el panel cuando esa persona llega a casa."),
+      rows.length ? N.h("ul", { class: "note-list short" }, ...rows) : N.h("p", { class: "empty" }, "No hay recados pendientes."));
   }
 
   // Hoja con todas las notas: escuchar las de voz y quitar cualquiera
@@ -969,7 +1033,7 @@
     if (!j) body.push(N.h("p", { class: "empty" }, "No pude consultar los dispositivos."));
     else if (!j.configured || !j.devices.length) {
       body.push(N.h("p", { class: "sheet-sub" }, "Aún no hay dispositivos conectados."),
-        N.h("p", { class: "empty" }, "Cuando tengas enchufes o luces Shelly en la app Shelly, NEXUS podrá encenderlos y apagarlos desde aquí y por voz («Oye NEXUS, apaga la lámpara del salón»)."));
+        N.h("p", { class: "empty" }, "Cuando tengas enchufes o luces Shelly en la app Shelly, NEXUS podrá encenderlos y apagarlos desde aquí y por voz («Oye NEXUS, apaga la lámpara del living»)."));
     } else {
       body.push(N.h("ul", { class: "al-list" }, ...j.devices.map((d) => {
         const sw = N.h("button", { class: "switch", type: "button", role: "switch", "aria-checked": String(!!d.on), disabled: d.online ? null : true, "aria-label": d.name });
@@ -1097,6 +1161,18 @@
         data.powerMonth = m.powerMonth;
         render();
         if (sheet && sheet.dataset.kind === "power") openPower();
+      } else if (m.type === "presence" && m.presence) {
+        data.presence = m.presence; render();
+      } else if (m.type === "errands" && Array.isArray(m.errands)) {
+        data.errands = m.errands; render();
+      } else if (m.type === "receipts" && m.receipts) {
+        data.receipts = m.receipts;
+        if (sheet && /Lista de compras/.test(sheet.textContent)) refreshListSheet();
+      } else if (m.type === "cook" && m.recipe && window.NexusCook) {
+        // Receta enviada desde el celular: se abre el modo cocina, sin hablar
+        if (N.wakePanel) N.wakePanel();
+        closeSheet();
+        window.NexusCook.start(m.recipe, { silent: true });
       } else if (m.type === "notes" && Array.isArray(m.notes)) {
         data.notes = m.notes; liveAt.notes = Date.now();
         checkNewNotes(m.notes);

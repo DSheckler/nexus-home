@@ -817,6 +817,14 @@ body.night .pills { display: none; }
 .pill.warn.orange { border-color: #e08a3c; background: rgba(224, 138, 60, .14); }
 .pill.warn.red { border-color: #e05a4e; background: rgba(224, 90, 78, .16); }
 .pill.garbage.soon { border-color: rgba(127, 191, 142, .6); }
+.pill.presence { border-color: rgba(127, 191, 142, .5); --ic-bg: rgba(127, 191, 142, .28); --ic-fg: #b4e6c0; }
+.pill.presence.empty { border-color: var(--line); --ic-bg: rgba(255, 255, 255, .08); --ic-fg: var(--muted); }
+.pill.errand { border-color: rgba(143, 176, 255, .55); --ic-bg: rgba(143, 176, 255, .3); --ic-fg: #cddaff; }
+.shop-sug { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin: 0 0 1.4rem; }
+.shop-sug-t { font-size: 1.6rem; color: var(--muted); }
+.shop-sug .pill.sug { min-width: 0; padding: .5rem 1.4rem; font-size: 1.6rem; border-style: dashed; }
+.shop-spend { font-size: 1.6rem; margin: 1.4rem 0 0; color: var(--text); }
+.shop-spend.muted { color: var(--muted); }
 .pill.brief { border-color: rgba(232, 184, 106, .6); background: rgba(232, 184, 106, .12); --ic-bg: rgba(232, 184, 106, .3); --ic-fg: #f3d9a8; }
 .pill.brief.evening, .pill.brief.weekly { border-color: rgba(143, 176, 255, .55); background: rgba(143, 176, 255, .12); --ic-bg: rgba(143, 176, 255, .3); --ic-fg: #cddaff; }
 .pill.date { border-color: rgba(230, 120, 160, .5); --ic-bg: rgba(230, 120, 160, .3); --ic-fg: #f7c1d4; }

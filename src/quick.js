@@ -11,6 +11,7 @@ import { powerMonthText } from "./consumption.js";
 import * as P from "./planner.js";
 import * as L from "./life.js";
 import { getAir, getAurora } from "./outdoor.js";
+import * as S from "./smart.js";
 
 // Países habituales → zona horaria (para "¿qué hora es en Chile?")
 const ZONES = {
@@ -118,6 +119,48 @@ const INTENTS = [
   timerIntent(/^(pon|ponme|crea|programa|inicia|activa|empieza)( un| una)? (temporizador|timer|cronometro|alarma) (de )?(.+?)( para (.+))?$/, 5, 7),
   timerIntent(/^(avisame|recuerdame|llamame) (en|dentro de) (.+?)( para (.+))?$/, 3, 5),
   timerIntent(/^(temporizador|timer|cronometro) (de )?(.+?)( para (.+))?$/, 3, 5),
+
+  // ---------- quién está en casa y recados ----------
+  {
+    re: /^(quien|quienes) (esta|estan|hay) en (la )?casa$|^(hay alguien|esta alguien) en (la )?casa$/,
+    run: async (m, env) => {
+      const p = await S.getPresence(env);
+      const names = Object.keys(p);
+      if (!names.length) return "Todavía nadie avisa cuándo llega o sale. Se configura con un Atajo del iPhone o con el botón «Llegué» del celular.";
+      const home = names.filter((n) => p[n].home);
+      if (!home.length) return "Según los avisos, no hay nadie en casa.";
+      return home.length === 1 ? `En casa está ${home[0]}.` : `En casa están ${home.slice(0, -1).join(", ")} y ${home.at(-1)}.`;
+    },
+  },
+  {
+    re: /^(ya )?(llego|esta en casa|volvio|ha llegado) (\w+)$|^(\w+) (ya )?(llego|esta en casa|volvio)$/,
+    run: async (m, env) => {
+      const name = S.familyName(m[3] || m[4]);
+      if (!name) return null;
+      const p = (await S.getPresence(env))[name];
+      if (!p) return `No sé cuándo llega o sale ${name}: su celular todavía no avisa.`;
+      const t = new Date(p.at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+      return p.home ? `Sí, ${name} llegó a las ${t}.` : `Todavía no. ${name} salió a las ${t}.`;
+    },
+  },
+  {
+    re: /^cuando llegue (\w+) (dile|avisale|recuerdale|cuentale|comentale|digale) (que )?(.+)$/,
+    run: async (m, env, changed) => {
+      const r = await S.addErrand(env, { to: m[1], text: originalTail(ORIGINAL.text, m[4]) });
+      changed.home = true;
+      const name = S.familyName(m[1]);
+      return r.now ? `${name} ya está en casa: le dejé la nota en el panel.` : `Listo, cuando llegue ${name} le dejo el recado en el panel.`;
+    },
+  },
+  {
+    re: /^cuanto (llevamos|hemos gastado|gastamos|va|vamos|llevo) (gastado )?(en el|de|del) (super|supermercado|comida)( este mes)?$/,
+    run: async (m, env) => {
+      const r = await S.receiptsSummary(env);
+      const c = r.current;
+      if (!c.count) return "Este mes todavía no hay boletas. Se agregan con una foto desde el celular, en Compras.";
+      return `En ${c.label} llevan unas ${c.total} coronas en el súper, con ${c.count} ${c.count === 1 ? "boleta" : "boletas"}.` + (r.previous.count ? ` En ${r.previous.label} fueron ${r.previous.total}.` : "");
+    },
+  },
 
   // ---------- lista de compras ----------
   {

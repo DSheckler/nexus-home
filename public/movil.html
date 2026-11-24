@@ -110,6 +110,13 @@
     .chore-done { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 600; background: var(--sun); color: var(--sun-ink); }
     li.due .txt { color: var(--sun-ink); font-weight: 600; }
     label.link { text-align: center; cursor: pointer; }
+    .sug-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+    .sug-row button { border: 1px dashed var(--line); background: var(--panel); color: var(--text); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 14px; }
+    .file-btn { display: block; text-align: center; margin: 8px 0; cursor: pointer; }
+    .check-line { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); margin: 4px 0 8px; }
+    #rcList li, #hPresence p { font-size: 14px; }
+    details.meta2 { margin-top: 10px; font-size: 13px; }
+    details.meta2 code { word-break: break-all; font-size: 12px; }
     .guest-note { text-align: center; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
     .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
     /* ===== Estilo Cristal (igual que la tablet): cielo de fondo y tarjetas de vidrio ===== */
@@ -190,7 +197,7 @@
   <main id="app" class="hidden">
     <div id="warns"></div>
     <div class="tabs" role="tablist">
-      <button type="button" role="tab" id="tabShop" aria-selected="true">Compra</button>
+      <button type="button" role="tab" id="tabShop" aria-selected="true">Compras</button>
       <button type="button" role="tab" id="tabNotes" aria-selected="false">Notas</button>
       <button type="button" role="tab" id="tabMenu" aria-selected="false">Menú</button>
       <button type="button" role="tab" id="tabChores" aria-selected="false">Tareas</button>
@@ -199,12 +206,20 @@
     </div>
 
     <section id="shop">
+      <div class="sug-row hidden" id="shopSug"></div>
       <div class="panel"><ul id="shopList"></ul></div>
       <form id="shopForm">
         <input id="shopInput" type="text" maxlength="60" placeholder="Agregar a la lista…" aria-label="Artículo" enterkeyhint="done">
         <button class="btn" type="submit">Agregar</button>
       </form>
       <button class="link" id="clearDone" type="button">Quitar los comprados</button>
+      <div class="h-sec" id="rcSec">
+        <h2>Gasto del súper</h2>
+        <p class="meta2" id="rcSum">Saca una foto a la boleta y NEXUS suma el gasto del mes.</p>
+        <label class="btn file-btn" for="rcFile" id="rcBtn">Agregar boleta (foto)</label>
+        <input id="rcFile" type="file" accept="image/*" capture="environment" class="hidden">
+        <div class="panel hidden"><ul id="rcList"></ul></div>
+      </div>
     </section>
 
     <section id="notes" class="hidden">
@@ -216,6 +231,7 @@
           </select>
           <input id="noteText" type="text" maxlength="160" placeholder="Escribe una nota…" aria-label="Nota">
         </div>
+        <label class="check-line hidden" id="whenHomeWrap"><input type="checkbox" id="noteWhenHome"> Mostrarla cuando llegue a casa</label>
         <button class="btn" type="submit">Dejar nota en el panel</button>
       </form>
       <button class="rec" id="recBtn" type="button"><span class="dot"></span><span id="recText">Grabar nota de voz</span></button>
@@ -225,6 +241,17 @@
       <div class="panel"><ul id="menuList"></ul></div>
       <button class="btn" id="menuShop" type="button" style="width:100%">Pasar ingredientes a la compra</button>
       <p class="pw-note">Escribe la cena y, si quieres, los ingredientes separados por comas. Se guarda al salir del campo.</p>
+      <div class="h-sec">
+        <h2>Cocinar una receta</h2>
+        <p class="meta2">Pega el enlace de una receta o sácale una foto (libro, revista, pantalla). Se abre paso a paso en la tablet, en español.</p>
+        <form id="rpForm" class="note-form">
+          <div class="row"><input id="rpUrl" type="url" inputmode="url" placeholder="https://… enlace de la receta" aria-label="Enlace de la receta"></div>
+          <button class="btn" type="submit">Abrir en la tablet</button>
+        </form>
+        <label class="ghost-btn file-btn" for="rpFile" id="rpBtn">Foto de una receta</label>
+        <input id="rpFile" type="file" accept="image/*" capture="environment" class="hidden">
+        <div id="rpResult"></div>
+      </div>
     </section>
 
     <section id="chores" class="hidden">
@@ -243,6 +270,24 @@
     </section>
 
     <section id="house" class="hidden">
+      <div class="h-sec">
+        <h2>Quién está en casa</h2>
+        <div id="hPresence"></div>
+        <div class="two">
+          <button class="btn" id="prHome" type="button">Llegué</button>
+          <button class="ghost-btn" id="prAway" type="button">Salí</button>
+        </div>
+        <details class="meta2">
+          <summary>Que el iPhone avise solo al llegar y salir</summary>
+          <ol>
+            <li>Abre <b>Atajos</b> → <b>Automatización</b> → <b>+</b> → <b>Llegar</b>, elige tu casa y «Ejecutar inmediatamente».</li>
+            <li>Agrega la acción <b>Obtener contenido de URL</b> con este enlace: <code id="prUrl"></code></li>
+            <li>Método <b>POST</b>; en Cabeceras: <code>Authorization</code> = <code id="prAuth"></code>; en Cuerpo (JSON): <code>who</code> = tu nombre y <code>state</code> = <code>llegue</code>.</li>
+            <li>Repite con <b>Salir</b> y <code>state</code> = <code>sali</code>.</li>
+          </ol>
+          <p>El iPhone solo envía «llegó» o «salió», nunca tu ubicación.</p>
+        </details>
+      </div>
       <div class="h-sec">
         <h2>Plantas</h2>
         <div id="hPlants"></div>
@@ -302,7 +347,7 @@
         </div>
         <button class="btn" type="submit">Guardar consumo</button>
       </form>
-      <p class="pw-note">Mira los kWh del mes en la factura de la luz. Con eso NEXUS calcula lo que pagasteis y estima mejor los meses siguientes.</p>
+      <p class="pw-note">Mira los kWh del mes en la factura de la luz. Con eso NEXUS calcula lo que pagaron y estima mejor los meses siguientes.</p>
       <p class="pw-h">Meses con factura</p>
       <div class="panel"><ul id="pwList"></ul></div>
     </section>
@@ -384,6 +429,74 @@
         $("shopInput").value = "";
         renderShop((await api("/api/shopping", { method: "POST", body: { text: t } })).items);
       });
+      // Sugerencias: lo que compran seguido y ya toca
+      function renderSug(list) {
+        const box = $("shopSug");
+        box.replaceChildren();
+        box.classList.toggle("hidden", !list || !list.length);
+        if (!list || !list.length) return;
+        box.append(el("span", "", "¿Se acabó?"));
+        for (const x of list) {
+          const b = el("button", "", "+ " + x.text); b.type = "button";
+          b.addEventListener("click", async () => { const j = await api("/api/shopping", { method: "POST", body: { text: x.text } }); renderShop(j.items); b.remove(); if (box.children.length < 2) box.classList.add("hidden"); });
+          box.append(b);
+        }
+      }
+
+      // Fotos: se achican en el celular antes de enviarlas (más rápido y menos datos)
+      function shrink(file, max = 1600) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const k = Math.min(1, max / Math.max(img.width, img.height));
+            const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+            URL.revokeObjectURL(img.src);
+            c.toBlob((b) => (b ? resolve(b) : reject(new Error("foto"))), "image/jpeg", 0.85);
+          };
+          img.onerror = () => reject(new Error("No se pudo abrir la foto"));
+          img.src = URL.createObjectURL(file);
+        });
+      }
+      async function sendPhoto(path, file, extra = {}) {
+        const blob = await shrink(file);
+        const r = await fetch(path, { method: "POST", headers: { Authorization: "Bearer " + key, "Content-Type": "image/jpeg", ...extra }, body: blob });
+        const j = await r.json().catch(() => ({ ok: false, error: "Sin respuesta" }));
+        if (!j.ok) throw new Error(j.error || "error");
+        return j;
+      }
+
+      // ---------- Boletas del súper ----------
+      const krR = (v) => Math.round(v).toLocaleString("es-CL") + " kr";
+      function renderReceipts(r) {
+        const c = r.current, p = r.previous;
+        $("rcSum").textContent = c.count ? `En ${c.label}: ${krR(c.total)} con ${c.count} ${c.count === 1 ? "boleta" : "boletas"}` + (p.count ? ` · en ${p.label}: ${krR(p.total)}` : "") + "."
+          : "Saca una foto a la boleta y NEXUS suma el gasto del mes.";
+        const ul = $("rcList"); ul.replaceChildren();
+        for (const x of (r.recent || []).slice(0, 8)) {
+          const li = el("li");
+          const txt = el("span", "txt", `${x.store} · ${krR(x.total)}`);
+          txt.append(el("span", "meta", x.date.split("-").reverse().join("/") + (x.from ? " · " + x.from : "") + ` · ${x.items} artículos`));
+          const del = el("button", "del", "×"); del.type = "button"; del.setAttribute("aria-label", "Quitar boleta");
+          del.addEventListener("click", async () => renderReceipts(await api("/api/receipts/" + x.id, { method: "DELETE" })));
+          li.append(txt, del); ul.append(li);
+        }
+        ul.parentElement.classList.toggle("hidden", !(r.recent || []).length);
+      }
+      async function loadReceipts() { try { renderReceipts(await api("/api/receipts")); } catch { /* invitados o sin red */ } }
+      $("rcFile").addEventListener("change", async () => {
+        const f = $("rcFile").files[0];
+        $("rcFile").value = "";
+        if (!f) return;
+        $("rcBtn").textContent = "Leyendo la boleta…";
+        try {
+          const j = await sendPhoto("/api/receipts", f, { "X-From": encodeURIComponent(store.get("who") || "") });
+          renderReceipts(j);
+          flash(`Boleta de ${j.receipt.store}: ${krR(j.receipt.total)}`);
+        } catch (err) { flash(err.message || "No se pudo leer la boleta"); }
+        $("rcBtn").textContent = "Agregar boleta (foto)";
+      });
+
       $("clearDone").addEventListener("click", async () => renderShop((await api("/api/shopping/comprados", { method: "DELETE" })).items));
 
       // ---------- Notas ----------
@@ -411,10 +524,72 @@
         const text = $("noteText").value.trim();
         if (!text) return;
         $("noteText").value = "";
+        // Para una persona que no está: se guarda como recado y aparece cuando llegue
+        if ($("noteWhenHome").checked && $("noteTo").value !== "Todos") {
+          const r = await api("/api/errands", { method: "POST", body: { to: $("noteTo").value, text, from: store.get("who") || "" } });
+          $("noteWhenHome").checked = false;
+          if (r.now) load();
+          flash(r.now ? `${$("noteTo").value} ya está en casa: la nota está en el panel` : `Se mostrará cuando llegue ${$("noteTo").value}`);
+          return;
+        }
         renderNotes((await api("/api/notes", { method: "POST", body: { to: $("noteTo").value, text, from: store.get("who") || "" } })).notes);
         $("status").textContent = "Nota enviada al panel";
         setTimeout(() => ($("status").textContent = ""), 2500);
       });
+
+      $("noteTo").addEventListener("change", () => $("whenHomeWrap").classList.toggle("hidden", $("noteTo").value === "Todos"));
+
+      // ---------- Recetas: enlace o foto → modo cocina en la tablet ----------
+      function recipeDone(r) {
+        const box = $("rpResult"); box.replaceChildren();
+        box.append(el("p", "meta2", `«${r.title}» está abierta en la tablet (${r.steps.length} pasos).`));
+        if (r.ingredients.length) {
+          const b = el("button", "ghost-btn", "Pasar los ingredientes a la compra"); b.type = "button"; b.style.width = "100%";
+          b.addEventListener("click", async () => { const j = await api("/api/shopping", { method: "POST", body: { text: r.ingredients.slice(0, 30) } }); renderShop(j.items); b.disabled = true; b.textContent = "Ingredientes agregados"; });
+          box.append(b);
+        }
+      }
+      $("rpForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const url = $("rpUrl").value.trim();
+        if (!url) return;
+        const btn = $("rpForm").querySelector("button"); btn.disabled = true; btn.textContent = "Leyendo la receta…";
+        try { const j = await api("/api/recipe", { method: "POST", body: { url } }); $("rpUrl").value = ""; recipeDone(j.recipe); }
+        catch (err) { flash(err.message || "No se pudo abrir la receta"); }
+        btn.disabled = false; btn.textContent = "Abrir en la tablet";
+      });
+      $("rpFile").addEventListener("change", async () => {
+        const f = $("rpFile").files[0];
+        $("rpFile").value = "";
+        if (!f) return;
+        $("rpBtn").textContent = "Leyendo la receta…";
+        try { recipeDone((await sendPhoto("/api/recipe/photo", f)).recipe); }
+        catch (err) { flash(err.message || "No se pudo leer la receta"); }
+        $("rpBtn").textContent = "Foto de una receta";
+      });
+
+      // ---------- Quién está en casa ----------
+      const hmT = (t) => new Date(t).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Stockholm" });
+      function renderPresence(p) {
+        const box = $("hPresence"); box.replaceChildren();
+        const names = Object.keys(p || {});
+        if (!names.length) box.append(el("p", "meta2", "Nadie avisa todavía. Toca «Llegué» o «Salí», o configura el Atajo del iPhone (abajo)."));
+        for (const n of names) box.append(el("p", "", `${n}: ${p[n].home ? "en casa desde las " : "salió a las "}${hmT(p[n].at)}`));
+      }
+      async function loadPresence() { try { renderPresence((await api("/api/presence")).presence); } catch { /* */ } }
+      async function setPresence(state) {
+        const who = store.get("who");
+        if (!who) { flash("Primero elige quién eres (arriba a la derecha)"); return; }
+        try {
+          const r = await api("/api/presence", { method: "POST", body: { who, state } });
+          renderPresence(r.presence);
+          flash(r.home ? (r.delivered.length ? `Tienes ${r.delivered.length} ${r.delivered.length === 1 ? "recado" : "recados"} en el panel` : "Listo: en casa") : "Listo: fuera de casa");
+        } catch (err) { flash(err.message || "No se pudo avisar"); }
+      }
+      $("prHome").addEventListener("click", () => setPresence("llegue"));
+      $("prAway").addEventListener("click", () => setPresence("sali"));
+      $("prUrl").textContent = location.origin + "/api/presence";
+      $("prAuth").textContent = "Bearer " + key;
 
       // ---------- Notas de voz ----------
       let player = null;
@@ -503,6 +678,8 @@
           if (ev.data === "pong") return;
           let msg; try { msg = JSON.parse(ev.data); } catch { return; }
           if (msg.type === "shopping" && Array.isArray(msg.items)) renderShop(msg.items);
+          if (msg.type === "presence" && msg.presence) renderPresence(msg.presence);
+          if (msg.type === "receipts" && store.get("tab") === "shop") loadReceipts();
           if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
           if (msg.type === "powerMonth" && msg.powerMonth) renderPower(msg.powerMonth);
           if (msg.type === "chores" && Array.isArray(msg.chores)) renderChores(msg.chores);
@@ -767,7 +944,8 @@
         if (which === "power") loadPower();
         if (which === "chores") loadChores();
         if (which === "menu") loadMenu();
-        if (which === "house") loadHouse();
+        if (which === "house") { loadHouse(); loadPresence(); }
+        if (which === "shop") loadReceipts();
       }
       $("tabShop").addEventListener("click", () => tab("shop"));
       $("tabNotes").addEventListener("click", () => tab("notes"));
@@ -809,13 +987,13 @@
       async function load() {
         try {
           const [s, n] = await Promise.all([api("/api/shopping"), api("/api/notes")]);
-          renderShop(s.items); if (!player && !rec) renderNotes(n.notes);
+          renderShop(s.items); renderSug(s.suggest); if (!player && !rec) renderNotes(n.notes);
         } catch (e) { if (e.message !== "auth") $("status").textContent = "Sin conexión"; }
       }
       // La familia viene de la configuración del servidor
       api("/api/config").then((c) => {
         if (c.scope === "guest") {
-          for (const id of ["tabChores", "tabPower", "tabMenu", "tabHouse", "recBtn", "recHint"]) $(id).classList.add("hidden");
+          for (const id of ["tabChores", "tabPower", "tabMenu", "tabHouse", "recBtn", "recHint", "rcSec", "whenHomeWrap"]) $(id).classList.add("hidden");
           if (["chores", "power", "menu", "house"].includes(store.get("tab"))) tab("shop");
           const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de compras y dejar notas.");
           $("app").prepend(note);

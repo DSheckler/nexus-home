@@ -35,6 +35,17 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   cada hora. Cuando llega la factura, anotas los kWh del mes desde el celular y el cálculo queda exacto.
   Si el mes sale mucho más caro o más barato, la tarjeta dice por qué: el precio medio del mercado frente al
   mes anterior («Mercado ×2,1 vs octubre»).
+- **Quién está en casa**: cada celular avisa al llegar o salir (Atajo del iPhone «Al llegar / Al salir» o botón
+  «Llegué / Salí» del celular). Solo se guarda «en casa» o «fuera», nunca la ubicación. «Oye NEXUS, ¿ya llegó Ana?».
+- **Recados al llegar**: «Oye NEXUS, cuando llegue Ana dile que pasó el cartero» (o desde el celular, marcando
+  «Mostrarla cuando llegue a casa»). La nota aparece en el panel cuando esa persona llega.
+- **Lista de compras que aprende**: NEXUS se fija cada cuánto piden cada cosa y sugiere «¿Se acabó? + leche».
+- **Gasto del súper**: una foto de la boleta desde el celular y NEXUS suma el mes (Workers AI con visión, Mistral
+  Small 3.1, dentro de la cuota gratuita). «Oye NEXUS, ¿cuánto llevamos en el súper?».
+- **Recetas desde un enlace o una foto**: se abren paso a paso en el modo cocina de la tablet, traducidas al
+  español si vienen en sueco o inglés. Las páginas con datos de receta (schema.org) no gastan IA.
+- **Sensor de presencia** (app Android 1.7): la cámara frontal detecta movimiento en la propia tablet, sin guardar
+  ni enviar imágenes. De noche sube un poco el brillo al acercarse; de día atenúa si no hay nadie. Se apaga en Casa.
 - **Lista de compras y notas** compartidas desde el celular (sin instalar nada). Los cambios llegan al panel
   **al instante** (conexión en vivo por WebSocket), y una nota nueva suena con un aviso corto.
 - **Notas de voz**: se graban desde el celular (hasta 1 minuto). En el panel aparecen como una tarjeta azul
