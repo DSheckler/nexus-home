@@ -117,6 +117,11 @@
     #rcList li, #hPresence p { font-size: 14px; }
     details.meta2 { margin-top: 10px; font-size: 13px; }
     details.meta2 code { word-break: break-all; font-size: 12px; }
+    .tv-grid { display: grid; gap: 8px; margin: 0 0 10px; }
+    .tv-grid.three { grid-template-columns: repeat(3, 1fr); }
+    .tv-grid.two { grid-template-columns: repeat(2, 1fr); }
+    .tv-grid button { min-height: 52px; width: 100%; }
+    .tv-grid.pad { max-width: 320px; margin: 4px auto 14px; }
     .guest-note { text-align: center; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
     .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
     /* ===== Estilo Cristal (igual que la tablet): cielo de fondo y tarjetas de vidrio ===== */
@@ -203,6 +208,7 @@
       <button type="button" role="tab" id="tabChores" aria-selected="false">Tareas</button>
       <button type="button" role="tab" id="tabPower" aria-selected="false">Luz</button>
       <button type="button" role="tab" id="tabHouse" aria-selected="false">Casa</button>
+      <button type="button" role="tab" id="tabTv" aria-selected="false">Tele</button>
     </div>
 
     <section id="shop">
@@ -331,6 +337,36 @@
         <label class="link" id="vcfLabel" for="vcfFile">Importar cumpleaños de Contactos (archivo .vcf)</label>
         <input id="vcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" class="hidden">
       </div>
+    </section>
+
+    <section id="tv" class="hidden">
+      <p class="meta2" id="tvState">La orden va a la tablet de la cocina, que se la pasa a la TV Box.</p>
+      <div class="tv-grid three">
+        <button class="ghost-btn" data-tv="off" type="button">Apagar</button>
+        <button class="btn" data-tv="playpause" type="button">Pausa / Play</button>
+        <button class="ghost-btn" data-tv="mute" type="button">Silencio</button>
+      </div>
+      <div class="tv-grid three">
+        <button class="ghost-btn" data-tv="voldown" data-arg="2" type="button">Vol −</button>
+        <button class="ghost-btn" data-tv="home" type="button">Inicio</button>
+        <button class="ghost-btn" data-tv="volup" data-arg="2" type="button">Vol +</button>
+      </div>
+      <div class="tv-grid three pad">
+        <span></span><button class="ghost-btn" data-tv="up" type="button">Arriba</button><span></span>
+        <button class="ghost-btn" data-tv="left" type="button">‹</button><button class="btn" data-tv="ok" type="button">OK</button><button class="ghost-btn" data-tv="right" type="button">›</button>
+        <button class="ghost-btn" data-tv="back" type="button">Atrás</button><button class="ghost-btn" data-tv="down" type="button">Abajo</button><span></span>
+      </div>
+      <div class="tv-grid two">
+        <button class="ghost-btn" data-tv="app" data-arg="youtube" type="button">YouTube</button>
+        <button class="ghost-btn" data-tv="app" data-arg="netflix" type="button">Netflix</button>
+        <button class="ghost-btn" data-tv="app" data-arg="disney" type="button">Disney+</button>
+        <button class="ghost-btn" data-tv="app" data-arg="music" type="button">YouTube Music</button>
+      </div>
+      <form id="tvSearch" class="note-form">
+        <div class="row"><input id="tvQ" type="text" maxlength="80" placeholder="Buscar en YouTube…" aria-label="Buscar en YouTube"></div>
+        <button class="btn" type="submit">Buscar en la tele</button>
+      </form>
+      <p class="pw-note">Para encender la tele usa su control: en reposo la TV Box se desconecta de la red.</p>
     </section>
 
     <section id="power" class="hidden">
@@ -679,6 +715,7 @@
           let msg; try { msg = JSON.parse(ev.data); } catch { return; }
           if (msg.type === "shopping" && Array.isArray(msg.items)) renderShop(msg.items);
           if (msg.type === "presence" && msg.presence) renderPresence(msg.presence);
+          if (msg.type === "tvresult" && tvWait.has(msg.id)) { tvWait.get(msg.id)(msg.ok, msg.msg); tvWait.delete(msg.id); }
           if (msg.type === "receipts" && store.get("tab") === "shop") loadReceipts();
           if (msg.type === "notes" && Array.isArray(msg.notes) && !player) renderNotes(msg.notes);
           if (msg.type === "powerMonth" && msg.powerMonth) renderPower(msg.powerMonth);
@@ -936,7 +973,7 @@
 
       // ---------- Pestañas y actualización ----------
       function tab(which) {
-        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["menu", "tabMenu"], ["chores", "tabChores"], ["power", "tabPower"], ["house", "tabHouse"]]) {
+        for (const [t, id] of [["shop", "tabShop"], ["notes", "tabNotes"], ["menu", "tabMenu"], ["chores", "tabChores"], ["power", "tabPower"], ["house", "tabHouse"], ["tv", "tabTv"]]) {
           $(t).classList.toggle("hidden", t !== which);
           $(id).setAttribute("aria-selected", String(t === which));
         }
@@ -953,6 +990,21 @@
       $("tabChores").addEventListener("click", () => tab("chores"));
       $("tabMenu").addEventListener("click", () => tab("menu"));
       $("tabHouse").addEventListener("click", () => tab("house"));
+      $("tabTv").addEventListener("click", () => tab("tv"));
+
+      // ---------- Tele: la orden pasa por el servidor a la tablet de la cocina ----------
+      const tvWait = new Map();
+      async function tvSend(action, arg, btn) {
+        if (btn) btn.disabled = true;
+        $("tvState").textContent = "Enviando…";
+        try {
+          const j = await api("/api/tv", { method: "POST", body: { action, arg: arg || "" } });
+          const t = setTimeout(() => { tvWait.delete(j.id); $("tvState").textContent = "La tablet no respondió. ¿Está encendida y con conexión?"; if (btn) btn.disabled = false; }, 15000);
+          tvWait.set(j.id, (ok, msg) => { clearTimeout(t); $("tvState").textContent = ok ? "Listo." : "No se pudo: " + (msg || "la TV Box no responde"); if (btn) btn.disabled = false; });
+        } catch (err) { $("tvState").textContent = "No se pudo enviar: " + (err.message || "error"); if (btn) btn.disabled = false; }
+      }
+      document.querySelectorAll("[data-tv]").forEach((b) => b.addEventListener("click", () => tvSend(b.dataset.tv, b.dataset.arg, b)));
+      $("tvSearch").addEventListener("submit", (e) => { e.preventDefault(); const q = $("tvQ").value.trim(); if (q) { tvSend("search", q); $("tvQ").value = ""; } });
       tab(store.get("tab") || "shop");
 
       // ---------- Avisos de SMHI (amarillo, naranja o rojo en tu zona) ----------
@@ -993,8 +1045,8 @@
       // La familia viene de la configuración del servidor
       api("/api/config").then((c) => {
         if (c.scope === "guest") {
-          for (const id of ["tabChores", "tabPower", "tabMenu", "tabHouse", "recBtn", "recHint", "rcSec", "whenHomeWrap"]) $(id).classList.add("hidden");
-          if (["chores", "power", "menu", "house"].includes(store.get("tab"))) tab("shop");
+          for (const id of ["tabChores", "tabPower", "tabMenu", "tabHouse", "tabTv", "recBtn", "recHint", "rcSec", "whenHomeWrap"]) $(id).classList.add("hidden");
+          if (["chores", "power", "menu", "house", "tv"].includes(store.get("tab"))) tab("shop");
           const note = el("p", "guest-note", "Estás como invitado: puedes usar la lista de compras y dejar notas.");
           $("app").prepend(note);
         }

@@ -23,7 +23,7 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.26.1";
+const VERSION = "1.27.0";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -166,7 +166,7 @@ async function scopeOf(request, env) {
   if (await P.isGuest(env, key)) return "guest";
   return null;
 }
-const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor|warnings)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?|presence|errands(\/[a-z0-9]{1,20})?|receipts(\/[a-z0-9]{1,20})?|recipe(\/photo)?)$/i;
+const FAMILY_PATHS = /^\/api\/(?:(shopping|notes|config|live|reminders|chores|guests)(\/[a-z0-9]{1,20})?|notes\/voice|notes\/[a-z0-9]{1,20}\/audio|power\/month|power\/readings(\/\d{4}-\d{2})?|dates\/import|chores\/[a-z0-9]{1,20}\/done|(plants|menu|school|abroad|vacation|outdoor|warnings)|plants\/[a-z0-9]{1,20}(\/water)?|menu\/(\d{4}-\d{2}-\d{2}|shop)|devices(\/[a-z0-9_-]{1,20})?|presence|errands(\/[a-z0-9]{1,20})?|receipts(\/[a-z0-9]{1,20})?|recipe(\/photo)?|tv)$/i;
 // Invitados: solo la lista de compras y las notas de texto
 const GUEST_PATHS = /^\/api\/(?:shopping(\/[a-z0-9]{1,20})?|notes(\/(?!voice$)[a-z0-9]{1,20})?|config|live)$/;
 
@@ -477,6 +477,22 @@ async function handleApi(request, env, url, ctx) {
     const summary = await S.receiptsSummary(env);
     notify(env, ctx, { type: "receipts", receipts: { current: summary.current, previous: summary.previous } });
     return json({ ok: true, ...summary });
+  }
+
+  // Tele desde el celular: el servidor pasa la orden a la tablet (que está en la misma red que
+  // la TV Box) y la tablet devuelve el resultado. Solo órdenes de la lista.
+  const TV_ACTIONS = ["on", "off", "volup", "voldown", "mute", "playpause", "home", "back", "up", "down", "left", "right", "ok", "app", "search"];
+  if (path === "/api/tv" && method === "POST") {
+    const b = await body(request);
+    if (!TV_ACTIONS.includes(b.action)) return json({ ok: false, error: "Orden no válida" }, 400);
+    const id = "tv" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    notify(env, ctx, { type: "tv", id, action: b.action, arg: String(b.arg || "").slice(0, 80) }, ["full"]);
+    return json({ ok: true, id });
+  }
+  if (path === "/api/tv/result" && method === "POST" && scope === "full") {
+    const b = await body(request);
+    notify(env, ctx, { type: "tvresult", id: String(b.id || "").slice(0, 30), ok: !!b.ok, msg: String(b.msg || "").slice(0, 160) }, ["family"]);
+    return json({ ok: true });
   }
 
   // Recetas desde un enlace o una foto: se abren en el modo cocina de la tablet

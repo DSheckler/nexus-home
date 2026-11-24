@@ -49,6 +49,8 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   la tele por HDMI-CEC, volumen, pausa, abrir YouTube/Netflix/Disney+ y buscar en YouTube. En Casa → Tele hay un
   control remoto, y por voz: «Oye NEXUS, pon YouTube en la tele», «busca recetas de empanadas en YouTube».
   La página solo puede pedir órdenes de una lista fija; la TV Box se busca sola en la red.
+  Desde el celular, pestaña **Tele**: la orden va al servidor, este se la pasa a la tablet (que está en la misma red que
+  la TV Box) y la tablet responde si funcionó. Encender sigue siendo con el control: en reposo la TV Box se desconecta.
 - **Fondo de aurora boreal**: cuando NOAA prevé auroras (Kp alto) y el cielo está despejado, el cielo animado muestra
   cortinas de aurora detrás del cristal (y un resplandor verde quieto en el modo noche). Vista previa: `?aurora=1`.
 - **Sensor de presencia** (app Android 1.7): la cámara frontal detecta movimiento en la propia tablet, sin guardar

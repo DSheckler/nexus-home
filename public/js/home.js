@@ -1174,6 +1174,11 @@
         data.powerMonth = m.powerMonth;
         render();
         if (sheet && sheet.dataset.kind === "power") openPower();
+      } else if (m.type === "tv" && m.id && window.NexusTV) {
+        // Orden de tele que llega desde un celular: la tablet la ejecuta y avisa del resultado
+        const report = (ok, msg) => N.api("/api/tv/result", { method: "POST", body: { id: m.id, ok, msg } }).catch(() => {});
+        if (!window.NexusTV.available()) report(false, "La tablet no tiene la app con control de tele");
+        else window.NexusTV.run(m.action, m.arg || "").then(() => report(true, "")).catch((e) => report(false, e.message));
       } else if (m.type === "presence" && m.presence) {
         data.presence = m.presence; render();
       } else if (m.type === "errands" && Array.isArray(m.errands)) {
