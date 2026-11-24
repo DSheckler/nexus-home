@@ -44,6 +44,8 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   Small 3.1, dentro de la cuota gratuita). «Oye NEXUS, ¿cuánto llevamos en el súper?».
 - **Recetas desde un enlace o una foto**: se abren paso a paso en el modo cocina de la tablet, traducidas al
   español si vienen en sueco o inglés. Las páginas con datos de receta (schema.org) no gastan IA.
+- **Fondo de aurora boreal**: cuando NOAA prevé auroras (Kp alto) y el cielo está despejado, el cielo animado muestra
+  cortinas de aurora detrás del cristal (y un resplandor verde quieto en el modo noche). Vista previa: `?aurora=1`.
 - **Sensor de presencia** (app Android 1.7): la cámara frontal detecta movimiento en la propia tablet, sin guardar
   ni enviar imágenes. De noche sube un poco el brillo al acercarse; de día atenúa si no hay nadie. Se apaga en Casa.
 - **Lista de compras y notas** compartidas desde el celular (sin instalar nada). Los cambios llegan al panel

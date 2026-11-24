@@ -1,6 +1,7 @@
 // NEXUS Home - cielo animado detrás del cristal.
 // Mañana, mediodía y atardecer: sol con rayos, nubes, bruma y pájaros. Noche: estrellas que
-// titilan y alguna estrella fugaz. Lluvia y nieve según el tiempo real.
+// titilan y alguna estrella fugaz. Lluvia y nieve según el tiempo real. Con aviso de auroras
+// (NOAA Kp alto y cielo despejado), cortinas de aurora boreal detrás de las estrellas.
 // Pensado para la tablet: lienzo de fondo a media resolución (va borroso tras el cristal),
 // 30 fotogramas por segundo y en pausa con el modo noche, la pantalla oculta o una hoja abierta.
 (function () {
@@ -123,6 +124,44 @@
     }
   }
 
+  // ---------- aurora boreal ----------
+  // Tres cortinas verdes con borde rosado que ondulan despacio, con rayos verticales.
+  // "Posible" = más tenue; "alta" = más intensa. Se pinta en el lienzo de fondo (detrás del cristal).
+  let aurora = 0; // 0 = no, 0.6 = posible, 1 = alta
+  const BANDS = [
+    { y: 250, h: 210, amp: 46, f: 1 / 260, sp: 1 / 9000, ph: 0, hue: [92, 255, 170] },
+    { y: 200, h: 170, amp: 34, f: 1 / 330, sp: 1 / 12000, ph: 2.1, hue: [80, 240, 200] },
+    { y: 300, h: 140, amp: 28, f: 1 / 210, sp: 1 / 7000, ph: 4.2, hue: [140, 255, 150] },
+  ];
+  function drawAurora(t) {
+    const k = aurora;
+    cx.save();
+    cx.globalCompositeOperation = "lighter";
+    for (const b of BANDS) {
+      const [r, g, bl] = b.hue, breathe = .75 + .25 * Math.sin(t / 4000 + b.ph);
+      const base = (x) => b.y + Math.sin(x * b.f + t * b.sp + b.ph) * b.amp + Math.sin(x * b.f * 2.7 + t * b.sp * 1.8) * b.amp * .35;
+      // Cortina: más brillante abajo (verde) y difuminada hacia arriba (rosado tenue)
+      for (let x = -20; x < W + 20; x += 16) {
+        const y0 = base(x), top = y0 - b.h * (.75 + .25 * Math.sin(x / 90 + t / 3000 + b.ph));
+        const ray = .55 + .45 * Math.sin(x / 23 + t / 1700 + b.ph * 3); // rayos verticales que se mueven
+        const a = .26 * k * breathe * ray;
+        const gr = cx.createLinearGradient(0, y0 + 14, 0, top);
+        gr.addColorStop(0, `rgba(${r},${g},${bl},0)`);
+        gr.addColorStop(.08, `rgba(${r},${g},${bl},${a * 1.4})`);
+        gr.addColorStop(.45, `rgba(${r},${g},${bl},${a * .55})`);
+        gr.addColorStop(.8, `rgba(200,110,220,${a * .25})`);
+        gr.addColorStop(1, "rgba(200,110,220,0)");
+        cx.fillStyle = gr;
+        cx.fillRect(x, top, 17, y0 + 14 - top);
+      }
+    }
+    // Resplandor verde sobre el horizonte
+    const hz = cx.createLinearGradient(0, 620, 0, 240);
+    hz.addColorStop(0, "rgba(70,220,150,0)"); hz.addColorStop(.35, `rgba(70,220,150,${.14 * k})`); hz.addColorStop(1, "rgba(70,220,150,0)");
+    cx.fillStyle = hz; cx.fillRect(0, 240, W, 380);
+    cx.restore();
+  }
+
   function drawParts(t) {
     for (const q of parts) {
       if (mode === "rain") {
@@ -204,6 +243,7 @@
     cx.clearRect(0, 0, W, H);
     if (!lite) cx2.clearRect(0, 0, W, H);
     if (SKY[mode]) drawDay(t);
+    if (aurora && mode === "stars") drawAurora(t);
     drawParts(t);
     if (!lite) drawFront(t);
     // Si dibujar tarda demasiado en esta tablet, se pasa a la versión ligera
@@ -219,11 +259,16 @@
       if (m === mode && c === cloudy) return;
       mode = m; cloudy = c; seed();
     },
-    state: () => ({ mode, cloudy, lite }),
+    // level: 0 (sin aurora), 0.6 (posible) o 1 (alta)
+    setAurora(level) { aurora = Math.max(0, Math.min(1, Number(level) || 0)); },
+    state: () => ({ mode, cloudy, lite, aurora }),
   };
   size();
   const pre = window.NEXUS_SKY;
   if (pre) { mode = pre.fx; cloudy = pre.cloudy || 0; }
   seed();
+  // ?aurora=1 para previsualizar
+  const qa = new URLSearchParams(location.search).get("aurora");
+  if (qa) aurora = Number(qa) || 1;
   requestAnimationFrame(frame);
 })();

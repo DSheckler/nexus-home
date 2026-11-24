@@ -142,7 +142,19 @@
     ]);
   }
 
+  // Aurora visible ahora (aviso NOAA con cielo despejado, ±3 h de la mejor hora): fondo animado
+  // y, en modo noche, un resplandor verde quieto
+  function applyAurora() {
+    const a = data && data.aurora;
+    const forced = new URLSearchParams(location.search).get("aurora");
+    const near = a && a.chance && a.at && Math.abs(Date.now() - a.at) < 3 * 3600000;
+    const level = forced ? Number(forced) || 1 : near ? (a.chance === "alta" ? 1 : 0.6) : 0;
+    if (window.NexusSky && window.NexusSky.setAurora) window.NexusSky.setAurora(level);
+    document.body.classList.toggle("aurora", level > 0);
+  }
+
   function render() {
+    applyAurora();
     const box = $("info");
     if (!data) { lastKey = ""; $("pills").replaceChildren(); return box.replaceChildren(); }
     const key = renderKey();
