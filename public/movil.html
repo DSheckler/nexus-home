@@ -117,11 +117,29 @@
     #rcList li, #hPresence p { font-size: 14px; }
     details.meta2 { margin-top: 10px; font-size: 13px; }
     details.meta2 code { word-break: break-all; font-size: 12px; }
-    .tv-grid { display: grid; gap: 8px; margin: 0 0 10px; }
-    .tv-grid.three { grid-template-columns: repeat(3, 1fr); }
-    .tv-grid.two { grid-template-columns: repeat(2, 1fr); }
-    .tv-grid button { min-height: 52px; width: 100%; }
-    .tv-grid.pad { max-width: 320px; margin: 4px auto 14px; }
+    .tv-search { display: flex; gap: 8px; margin: 0 0 6px; }
+    .tv-search input { flex: 1; min-width: 0; font-size: 17px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+    .remote { display: flex; flex-direction: column; align-items: center; gap: 16px; margin: 14px 0 6px; }
+    .dpad { position: relative; width: 230px; height: 230px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); box-shadow: inset 0 2px 10px rgba(0,0,0,.08); }
+    .dk { position: absolute; border: 0; background: transparent; color: var(--text); font-size: 26px; line-height: 1; width: 76px; height: 76px; border-radius: 50%; -webkit-tap-highlight-color: transparent; }
+    .dk:active { background: rgba(127,127,127,.18); }
+    .dk.up { top: 2px; left: 77px; } .dk.down { bottom: 2px; left: 77px; } .dk.left { left: 2px; top: 77px; } .dk.right { right: 2px; top: 77px; }
+    .dk.left, .dk.right { font-size: 40px; }
+    .dk.ok { left: 65px; top: 65px; width: 100px; height: 100px; background: var(--text); color: var(--bg); font-weight: 700; font-size: 20px; }
+    .rk-row { display: flex; gap: 12px; width: 100%; justify-content: center; }
+    .rk { flex: 1; max-width: 120px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+    .rk b { font-size: 22px; font-weight: 400; }
+    .rk.big { max-width: 150px; background: var(--text); color: var(--bg); border-color: var(--text); }
+    .vol { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
+    .vol button { border: 0; background: transparent; color: var(--text); font: inherit; min-width: 70px; height: 52px; font-size: 26px; }
+    .vol .mute { font-size: 14px; min-width: 96px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+    .apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
+    .app { height: 54px; border-radius: 14px; border: 0; color: #fff; font: inherit; font-size: 13px; font-weight: 600; }
+    .app.yt { background: #c4302b; } .app.nf { background: #b20710; } .app.dp { background: #113ccf; } .app.ym { background: #3a3a3a; }
+    .off { border: 0; background: transparent; color: var(--danger, #c8493c); font: inherit; font-size: 15px; padding: 8px 16px; }
+    .tv-state { text-align: center; }
+    .tv-yt { display: flex; gap: 8px; align-items: center; justify-content: flex-start; font-size: 14px; color: var(--muted); margin: 0 0 4px 4px; }
+    .tv-yt input { width: 18px; height: 18px; margin: 0; }
     .guest-note { text-align: center; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
     .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 6px 0 0; }
     /* ===== Estilo Cristal (igual que la tablet): cielo de fondo y tarjetas de vidrio ===== */
@@ -286,10 +304,10 @@
         <details class="meta2">
           <summary>Que el iPhone avise solo al llegar y salir</summary>
           <ol>
-            <li>Abre <b>Atajos</b> → <b>Automatización</b> → <b>+</b> → <b>Llegar</b>, elige tu casa y «Ejecutar inmediatamente».</li>
-            <li>Agrega la acción <b>Obtener contenido de URL</b> con este enlace: <code id="prUrl"></code></li>
-            <li>Método <b>POST</b>; en Cabeceras: <code>Authorization</code> = <code id="prAuth"></code>; en Cuerpo (JSON): <code>who</code> = tu nombre y <code>state</code> = <code>llegue</code>.</li>
-            <li>Repite con <b>Salir</b> y <code>state</code> = <code>sali</code>.</li>
+            <li>Abre  →  →  → , elige tu casa y «Ejecutar inmediatamente».</li>
+            <li>Agrega la acción  con este enlace: <code id="prUrl"></code></li>
+            <li>Método ; en Cabeceras: <code>Authorization</code> = <code id="prAuth"></code>; en Cuerpo (JSON): <code>who</code> = tu nombre y <code>state</code> = <code>llegue</code>.</li>
+            <li>Repite con  y <code>state</code> = <code>sali</code>.</li>
           </ol>
           <p>El iPhone solo envía «llegó» o «salió», nunca tu ubicación.</p>
         </details>
@@ -340,33 +358,39 @@
     </section>
 
     <section id="tv" class="hidden">
-      <p class="meta2" id="tvState">La orden va a la tablet de la cocina, que se la pasa a la TV Box.</p>
-      <div class="tv-grid three">
-        <button class="ghost-btn" data-tv="off" type="button">Apagar</button>
-        <button class="btn" data-tv="playpause" type="button">Pausa / Play</button>
-        <button class="ghost-btn" data-tv="mute" type="button">Silencio</button>
-      </div>
-      <div class="tv-grid three">
-        <button class="ghost-btn" data-tv="voldown" data-arg="2" type="button">Vol −</button>
-        <button class="ghost-btn" data-tv="home" type="button">Inicio</button>
-        <button class="ghost-btn" data-tv="volup" data-arg="2" type="button">Vol +</button>
-      </div>
-      <div class="tv-grid three pad">
-        <span></span><button class="ghost-btn" data-tv="up" type="button">Arriba</button><span></span>
-        <button class="ghost-btn" data-tv="left" type="button">‹</button><button class="btn" data-tv="ok" type="button">OK</button><button class="ghost-btn" data-tv="right" type="button">›</button>
-        <button class="ghost-btn" data-tv="back" type="button">Atrás</button><button class="ghost-btn" data-tv="down" type="button">Abajo</button><span></span>
-      </div>
-      <div class="tv-grid two">
-        <button class="ghost-btn" data-tv="app" data-arg="youtube" type="button">YouTube</button>
-        <button class="ghost-btn" data-tv="app" data-arg="netflix" type="button">Netflix</button>
-        <button class="ghost-btn" data-tv="app" data-arg="disney" type="button">Disney+</button>
-        <button class="ghost-btn" data-tv="app" data-arg="music" type="button">YouTube Music</button>
-      </div>
-      <form id="tvSearch" class="note-form">
-        <div class="row"><input id="tvQ" type="text" maxlength="80" placeholder="Buscar en YouTube…" aria-label="Buscar en YouTube"></div>
-        <button class="btn" type="submit">Buscar en la tele</button>
+      <form id="tvSearch" class="tv-search">
+        <input id="tvQ" type="search" maxlength="80" placeholder="¿Qué quieren ver?" aria-label="Qué quieren ver" enterkeyhint="search">
+        <button class="btn" type="submit">Buscar</button>
       </form>
-      <p class="pw-note">Para encender la tele usa su control: en reposo la TV Box se desconecta de la red.</p>
+      <label class="tv-yt"><input type="checkbox" id="tvYt"> Solo en YouTube</label>
+
+      <div class="remote">
+        <div class="dpad" role="group" aria-label="Flechas">
+          <button class="dk up" data-tv="up" type="button" aria-label="Arriba">▲&#xFE0E;</button>
+          <button class="dk left" data-tv="left" type="button" aria-label="Izquierda">‹</button>
+          <button class="dk ok" data-tv="ok" type="button">OK</button>
+          <button class="dk right" data-tv="right" type="button" aria-label="Derecha">›</button>
+          <button class="dk down" data-tv="down" type="button" aria-label="Abajo">▼&#xFE0E;</button>
+        </div>
+        <div class="rk-row">
+          <button class="rk" data-tv="back" type="button">Atrás</button>
+          <button class="rk big" data-tv="playpause" type="button">Pausa / Play</button>
+          <button class="rk" data-tv="home" type="button">Inicio</button>
+        </div>
+        <div class="vol" role="group" aria-label="Volumen">
+          <button data-tv="voldown" data-arg="2" type="button" aria-label="Bajar volumen">−</button>
+          <button data-tv="mute" type="button" class="mute">Silencio</button>
+          <button data-tv="volup" data-arg="2" type="button" aria-label="Subir volumen">+</button>
+        </div>
+        <div class="apps">
+          <button class="app yt" data-tv="app" data-arg="youtube" type="button">YouTube</button>
+          <button class="app nf" data-tv="app" data-arg="netflix" type="button">Netflix</button>
+          <button class="app dp" data-tv="app" data-arg="disney" type="button">Disney+</button>
+          <button class="app ym" data-tv="app" data-arg="music" type="button">Música</button>
+        </div>
+        <button class="off" data-tv="off" type="button">Apagar la tele</button>
+      </div>
+      <p class="meta2 tv-state" id="tvState">Para encenderla usa el control de la tele.</p>
     </section>
 
     <section id="power" class="hidden">
@@ -1004,7 +1028,7 @@
         } catch (err) { $("tvState").textContent = "No se pudo enviar: " + (err.message || "error"); if (btn) btn.disabled = false; }
       }
       document.querySelectorAll("[data-tv]").forEach((b) => b.addEventListener("click", () => tvSend(b.dataset.tv, b.dataset.arg, b)));
-      $("tvSearch").addEventListener("submit", (e) => { e.preventDefault(); const q = $("tvQ").value.trim(); if (q) { tvSend("search", q); $("tvQ").value = ""; } });
+      $("tvSearch").addEventListener("submit", (e) => { e.preventDefault(); const q = $("tvQ").value.trim(); if (q) { tvSend($("tvYt").checked ? "ytsearch" : "search", q); $("tvQ").value = ""; $("tvQ").blur(); } });
       tab(store.get("tab") || "shop");
 
       // ---------- Avisos de SMHI (amarillo, naranja o rojo en tu zona) ----------

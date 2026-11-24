@@ -46,8 +46,9 @@ Runs entirely on Cloudflare's free tier. Built for Sweden (SMHI warnings, SE1–
   español si vienen en sueco o inglés. Las páginas con datos de receta (schema.org) no gastan IA.
 - **Control de la tele** (app Android 1.8): la tablet manda órdenes a una TV Box Android/Google TV de la casa por
   ADB en la red (hay que activar la depuración por red en la TV Box y aceptar la tablet una vez). Encender/apagar
-  la tele por HDMI-CEC, volumen, pausa, abrir YouTube/Netflix/Disney+ y buscar en YouTube. En Casa → Tele hay un
-  control remoto, y por voz: «Oye NEXUS, pon YouTube en la tele», «busca recetas de empanadas en YouTube».
+  la tele por HDMI-CEC, volumen, pausa, abrir YouTube/Netflix/Disney+ y buscar en todas las apps a la vez
+  (búsqueda de Google TV: muestra en qué app está) o solo en YouTube. En Casa → Tele hay un
+  control remoto, y por voz: «Oye NEXUS, pon YouTube en la tele», «busca Bluey en la tele», «busca recetas de empanadas en YouTube».
   La página solo puede pedir órdenes de una lista fija; la TV Box se busca sola en la red.
   Desde el celular, pestaña **Tele**: la orden va al servidor, este se la pasa a la tablet (que está en la misma red que
   la TV Box) y la tablet responde si funcionó. Encender sigue siendo con el control: en reposo la TV Box se desconecta.

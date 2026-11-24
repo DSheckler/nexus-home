@@ -73,26 +73,39 @@
     } catch (e) { N.toast("Tele: " + e.message); }
   }
 
-  // Control remoto en pantalla (hoja «Tele»)
-  function open(back) {
+  // Control remoto en pantalla (hoja «Tele»): buscador para todas las apps, flechas en círculo,
+  // pausa grande, volumen y apps. «Apagar» va abajo y discreto para no tocarlo sin querer.
+  function open() {
     const h = N.h;
-    const status = h("p", { class: "sheet-sub" }, getIp() ? "TV Box en " + getIp() : "Buscando la TV Box en la red…");
-    const btn = (label, action, arg, cls = "") => h("button", { class: "btn ghost tv-k " + cls, type: "button", onclick: async (e) => {
+    const status = h("p", { class: "sheet-sub tv-state" }, "Para encenderla usa el control de la tele.");
+    const go = (action, arg) => async (e) => {
       const el = e.currentTarget; el.disabled = true;
-      try { await run(action, arg); if (LABEL[action] && (action === "on" || action === "off")) N.toast(LABEL[action]); }
-      catch (err) { N.toast("Tele: " + err.message); status.textContent = err.message; }
+      try { await run(action, arg); status.textContent = action === "off" ? "Tele apagada." : "Listo."; }
+      catch (err) { status.textContent = "Tele: " + err.message; }
       el.disabled = false;
-    } }, label);
-    const pad = h("div", { class: "tv-pad" },
-      h("span"), btn("Arriba", "up"), h("span"),
-      btn("‹", "left"), btn("OK", "ok", "", "primary"), btn("›", "right"),
-      btn("Atrás", "back"), btn("Abajo", "down"), btn("Inicio", "home"));
-    const row1 = h("div", { class: "tv-row" }, btn("Encender", "on", "", "primary"), btn("Apagar", "off"), btn("Pausa / Play", "playpause"));
-    const row2 = h("div", { class: "tv-row" }, btn("Vol −", "voldown", "2"), btn("Silencio", "mute"), btn("Vol +", "volup", "2"));
-    const apps = h("div", { class: "tv-row" }, ...Object.entries(APPS).slice(0, 4).map(([k, v]) => btn(v, "app", k)));
-    window.NexusHome.openSheet("Tele", status, row1, row2, pad, apps,
-      h("p", { class: "sheet-sub" }, "Por voz: «Oye NEXUS, pon YouTube en la tele», «pausa la tele», «sube el volumen», «apaga la tele»."));
-    if (!getIp()) find().then((ip) => { status.textContent = "TV Box en " + ip; }).catch(() => { status.textContent = "No encontré la TV Box. ¿Está encendida y con la depuración por red activada?"; });
+    };
+    const k = (cls, label, action, arg, aria) => h("button", { class: cls, type: "button", "aria-label": aria || null, onclick: go(action, arg) }, label);
+    const q = h("input", { class: "ed-input", type: "search", maxlength: "80", placeholder: "¿Qué quieren ver?", "aria-label": "Qué quieren ver" });
+    const yt = h("input", { type: "checkbox" });
+    const form = h("form", { class: "tv-search" }, q, h("button", { class: "btn primary", type: "submit" }, "Buscar"));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = q.value.trim(); if (!text) return;
+      try { await run(yt.checked ? "ytsearch" : "search", text); status.textContent = "Buscando «" + text + "»."; q.value = ""; q.blur(); }
+      catch (err) { status.textContent = "Tele: " + err.message; }
+    });
+    const remote = h("div", { class: "remote" },
+      h("div", { class: "dpad" },
+        k("dk up", "▲", "up", "", "Arriba"), k("dk left", "‹", "left", "", "Izquierda"),
+        k("dk ok", "OK", "ok"), k("dk right", "›", "right", "", "Derecha"), k("dk down", "▼", "down", "", "Abajo")),
+      h("div", { class: "rk-col" },
+        h("div", { class: "rk-row" },
+          k("rk", "Atrás", "back"), k("rk big", "Pausa / Play", "playpause"), k("rk", "Inicio", "home")),
+        h("div", { class: "vol" }, k("", "−", "voldown", "2", "Bajar volumen"), k("mute", "Silencio", "mute"), k("", "+", "volup", "2", "Subir volumen")),
+        h("div", { class: "tvapps" }, k("tvapp yt", "YouTube", "app", "youtube"), k("tvapp nf", "Netflix", "app", "netflix"), k("tvapp dp", "Disney+", "app", "disney"), k("tvapp ym", "Música", "app", "music")),
+        k("off", "Apagar la tele", "off")));
+    window.NexusHome.openSheet("Tele", form, h("label", { class: "tv-yt" }, yt, " Solo en YouTube"), remote, status);
+    if (!getIp()) find().catch(() => { status.textContent = "No encontré la TV Box. ¿Está encendida y con la depuración por red activada?"; });
   }
 
   function init(ctx) { N = ctx; }

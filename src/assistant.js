@@ -161,7 +161,7 @@ function buildTools(env, changed) {
     },
     tele: {
       description: "Controla la tele del living a través de la TV Box: encender, apagar, volumen, pausa, abrir YouTube/Netflix/Disney+/YouTube Music o buscar en YouTube.",
-      parameters: S({ accion: { type: "string", enum: ["on", "off", "volup", "voldown", "mute", "playpause", "home", "app", "search"] }, valor: { type: "string", description: "app: youtube|netflix|disney|music; search: lo que se busca; volumen: cuántos pasos (1-10)" } }, ["accion"]),
+      parameters: S({ accion: { type: "string", enum: ["on", "off", "volup", "voldown", "mute", "playpause", "home", "app", "search", "ytsearch"] }, valor: { type: "string", description: "app: youtube|netflix|disney|music; search: lo que se quiere ver (busca en todas las apps); ytsearch: solo en YouTube; volumen: cuántos pasos (1-10)" } }, ["accion"]),
       run: async (a) => { changed.tv = { action: a.accion, arg: a.valor || "" }; return { enviado: true }; },
     },
     dejar_recado: {

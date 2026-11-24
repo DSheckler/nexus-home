@@ -23,7 +23,7 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.27.0";
+const VERSION = "1.28.6";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -481,7 +481,7 @@ async function handleApi(request, env, url, ctx) {
 
   // Tele desde el celular: el servidor pasa la orden a la tablet (que está en la misma red que
   // la TV Box) y la tablet devuelve el resultado. Solo órdenes de la lista.
-  const TV_ACTIONS = ["on", "off", "volup", "voldown", "mute", "playpause", "home", "back", "up", "down", "left", "right", "ok", "app", "search"];
+  const TV_ACTIONS = ["on", "off", "volup", "voldown", "mute", "playpause", "home", "back", "up", "down", "left", "right", "ok", "app", "search", "ytsearch"];
   if (path === "/api/tv" && method === "POST") {
     const b = await body(request);
     if (!TV_ACTIONS.includes(b.action)) return json({ ok: false, error: "Orden no válida" }, 400);

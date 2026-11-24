@@ -211,6 +211,12 @@ public class MainActivity extends Activity {
                     return "monkey -p " + pkg + " -c android.intent.category.LEANBACK_LAUNCHER 1";
                 }
                 case "search": {
+                    // Búsqueda de Google TV en todas las apps (Netflix, Disney+, YouTube…): muestra dónde verlo
+                    String q = arg == null ? "" : arg.replaceAll("[^\\p{L}\\p{N} ]", " ").replaceAll("\\s+", " ").trim();
+                    if (q.isEmpty() || q.length() > 80) return null;
+                    return "am start -a android.search.action.GLOBAL_SEARCH --es query '" + q + "'";
+                }
+                case "ytsearch": {
                     String q = arg == null ? "" : arg.replaceAll("[^\\p{L}\\p{N} ]", " ").trim();
                     if (q.isEmpty() || q.length() > 80) return null;
                     String enc;
@@ -291,7 +297,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String version() {
-            return "1.8";
+            return "1.9";
         }
 
         // ---------- Sonido con el reproductor nativo ----------
