@@ -277,7 +277,11 @@
     try {
       // Textos largos (resumen del día…) con la voz de la tablet: la voz natural
       // es lo que más cuota gasta y así queda para las respuestas cortas.
-      if (text.length > LONG_TEXT) { await deviceSpeak(text, token); return; }
+      if (text.length > LONG_TEXT) {
+        const ok = await deviceSpeak(text, token);
+        if (ok !== false || token !== speakToken) return;
+        if (window.NexusLog) window.NexusLog({ type: "voz", msg: "voz del sistema no disponible: se usa la natural" });
+      }
       const parts = sentences(text);
       // Las frases siguientes se piden ya, mientras suena la primera
       const rest = parts.slice(1).map(ttsFetch);
@@ -313,14 +317,17 @@
     return deviceVoice;
   }
 
+  // Devuelve false si no hay voz del sistema disponible (quien llama usa otra voz)
   function deviceSpeak(text, token) {
-    // App Android: voz de Google del sistema (gratis). speechSynthesis no existe en WebView.
-    if (SND() && SND().hasDeviceVoice()) {
+    // App Android: voz del sistema (gratis). speechSynthesis no existe en WebView.
+    if (SND() && SND().native()) {
       if (token !== speakToken) return Promise.resolve();
+      if (!SND().hasDeviceVoice()) return Promise.resolve(false);
       return SND().deviceSpeak(text);
     }
+    if (!("speechSynthesis" in window)) return Promise.resolve(false);
     return new Promise((resolve) => {
-      if (!("speechSynthesis" in window) || token !== speakToken) return resolve();
+      if (token !== speakToken) return resolve();
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "es-CL";

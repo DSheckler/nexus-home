@@ -621,7 +621,10 @@
   function playBriefing(slot) {
     if (!window.NexusVoice) return;
     if (slot.kind === "morning") markMorning();
-    api(slot.url).then((j) => window.NexusVoice.say(j.text)).catch(() => toast("No pude preparar el resumen"));
+    toast("Preparando el resumen…");
+    api(slot.url)
+      .then((j) => { if (!j || !j.text) throw new Error("vacío"); return window.NexusVoice.say(j.text); })
+      .catch((e) => { toast("No pude preparar el resumen. Revisa la conexión."); remoteLog({ type: "resumen", msg: String(e && e.message || e) }); });
   }
 
   // Gesto oculto: mantener presionada la fecha 3 s abre los ajustes de Android

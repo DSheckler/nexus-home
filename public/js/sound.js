@@ -95,10 +95,12 @@
     if (!(A() && A().speak)) return Promise.resolve(false);
     const id = "t" + (++seq);
     return new Promise((resolve) => {
-      waiting.set(id, () => resolve(true));
+      // Tope por si el motor de voz nunca avisa de que terminó (~90 ms por letra + 8 s)
+      const t = setTimeout(() => { if (waiting.delete(id)) resolve(true); }, text.length * 90 + 8000);
+      waiting.set(id, () => { clearTimeout(t); resolve(true); });
       let ok = false;
       try { ok = A().speak(text, id); } catch { ok = false; }
-      if (!ok) { waiting.delete(id); resolve(false); }
+      if (!ok) { clearTimeout(t); waiting.delete(id); resolve(false); }
     });
   }
 
