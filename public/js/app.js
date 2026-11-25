@@ -195,7 +195,9 @@
     const w = state.weather;
     const sr = w ? toMin(w.today.sunrise) : 8 * 60, ss = w ? toMin(w.today.sunset) : 16 * 60;
     const m = params.get("cielo") ? toMin(params.get("cielo")) : nowMin(); // ?cielo=HH:MM para previsualizar
-    const stops = [[0, SKY.night], [sr - 90, SKY.night], [sr - 20, SKY.dawn], [sr + 70, SKY.day], [ss - 60, SKY.day], [ss + 15, SKY.dusk], [ss + 90, SKY.night], [1440, SKY.night]];
+    // Sigue la luz real: la noche empieza al terminar el crepúsculo (~40 min después de ponerse el sol)
+    const TW = 40;
+    const stops = [[0, SKY.night], [sr - TW - 20, SKY.night], [sr - 10, SKY.dawn], [sr + 60, SKY.day], [ss - 60, SKY.day], [ss, SKY.dusk], [ss + TW, SKY.night], [1440, SKY.night]];
     let a = stops[0], b = stops[stops.length - 1];
     for (let i = 0; i < stops.length - 1; i++) if (m >= stops[i][0] && m <= stops[i + 1][0]) { a = stops[i]; b = stops[i + 1]; break; }
     const t = b[0] === a[0] ? 0 : (m - a[0]) / (b[0] - a[0]);
@@ -206,7 +208,7 @@
     const grey = { cloudy: 0.45, fog: 0.55, rain: 0.5, storm: 0.6, snow: 0.35, partly: 0.2, partlyNight: 0.2 }[code] || 0;
     if (grey) { top = mix(top, GREY.top, grey); bot = mix(bot, GREY.bot, grey * 0.6); glow[3] *= 1 - grey; }
     // Momento del cielo para el cristal y su animación (js/sky.js)
-    let sky = m < sr - 30 || m > ss + 60 ? "night" : m < sr + 150 ? "morning" : m > ss - 70 ? "dusk" : "day";
+    let sky = m < sr - TW || m > ss + TW ? "night" : m < sr + 120 ? "morning" : m > ss - 60 ? "dusk" : "day";
     if (code === "rain" || code === "storm") sky = sky === "night" ? "night" : "rain";
     else if (code === "snow") sky = sky === "night" ? "night" : "snow";
     const fx = code === "rain" || code === "storm" ? "rain" : code === "snow" ? "snow" : sky === "night" ? "stars" : sky;
