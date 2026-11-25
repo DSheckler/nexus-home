@@ -206,6 +206,31 @@
     return out;
   }
 
+  // Trozos que caben en las dos líneas del subtítulo (~95 letras): frases enteras y, si una
+  // frase es muy larga, cortada por las comas. Así el texto avanza a medida que se lee.
+  const CAP_MAX = 95;
+  function captionChunks(text) {
+    const pieces = [];
+    for (const s of sentences(text)) {
+      if (s.length <= CAP_MAX) { pieces.push(s); continue; }
+      let cur = "";
+      for (const w of s.split(/(?<=[,;:])\s+/)) {
+        if (cur && (cur + " " + w).length > CAP_MAX) { pieces.push(cur); cur = w; }
+        else cur = cur ? cur + " " + w : w;
+      }
+      if (cur) pieces.push(cur);
+    }
+    // Junta trozos cortos seguidos si caben juntos
+    const out = [];
+    for (const p of pieces) {
+      if (out.length && (out[out.length - 1] + " " + p).length <= CAP_MAX) out[out.length - 1] += " " + p;
+      else out.push(p);
+    }
+    return out.length ? out : [text];
+  }
+  // Subtítulo del trozo que se está leyendo (solo si el texto entero no cabe)
+  const showPart = (full, part) => { if (full.length > CAP_MAX) caption(undefined, part); };
+
   function ttsFetch(text) {
     return fetch("/api/speak", {
       method: "POST",
@@ -278,14 +303,23 @@
       // Textos largos (resumen del día…) con la voz de la tablet: la voz natural
       // es lo que más cuota gasta y así queda para las respuestas cortas.
       if (text.length > LONG_TEXT) {
-        const ok = await deviceSpeak(text, token);
+        // Trozo a trozo, para que el subtítulo vaya siguiendo la voz
+        const chunks = captionChunks(text);
+        let ok = true;
+        for (let i = 0; i < chunks.length; i++) {
+          if (token !== speakToken) return;
+          showPart(text, chunks[i]);
+          ok = await deviceSpeak(chunks[i], token);
+          if (ok === false) { if (i > 0) return; break; }
+        }
         if (ok !== false || token !== speakToken) return;
         if (window.NexusLog) window.NexusLog({ type: "voz", msg: "voz del sistema no disponible: se usa la natural" });
       }
-      const parts = sentences(text);
+      const parts = text.length > CAP_MAX ? captionChunks(text) : sentences(text);
       // Las frases siguientes se piden ya, mientras suena la primera
       const rest = parts.slice(1).map(ttsFetch);
       const streamOk = CAN_STREAM && !(SND() && SND().native());
+      showPart(text, parts[0]);
       let ok = streamOk ? await playStreaming(parts[0], token).catch(() => false) : false;
       if (token !== speakToken) return;
       if (!ok) {
@@ -297,6 +331,7 @@
       for (let i = 0; i < rest.length; i++) {
         const blob = await rest[i];
         if (token !== speakToken) return;
+        showPart(text, parts[i + 1]);
         if (!blob) { await deviceSpeak(parts.slice(i + 1).join(" "), token); break; }
         await playBlob(blob, token);
       }
