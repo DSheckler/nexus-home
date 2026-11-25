@@ -38,8 +38,9 @@ export async function getPresence(env) {
 export async function setPresence(env, who, state) {
   const name = familyName(who);
   if (!name) throw new Error("No conozco a «" + clip(who, 20) + "» en la familia");
-  const home = /^(home|en ?casa|llegu[eé]|llego|llegada|arrive|1|true|si)$/i.test(String(state).trim());
-  const away = /^(away|fuera|sal[ií]|salgo|salida|leave|0|false|no)$/i.test(String(state).trim());
+  const st = fold(state).replace(/[^a-z0-9 ]/g, "").trim();
+  const home = /^(home|en ?casa|llegue|llego|llegada|arrive|arrived|1|true|si|on)$/.test(st);
+  const away = /^(away|fuera|sali|salgo|salida|leave|left|0|false|no|off)$/.test(st);
   if (!home && !away) throw new Error("Estado no válido: usa «llegué» o «salí»");
   const all = await getJ(env, "presence", {});
   const before = all[name] && all[name].home;

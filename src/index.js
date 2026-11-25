@@ -23,7 +23,7 @@ import { handlePush, startWatches, ensureWatches, watchStatus } from "./gcalpush
 export { HomeHub } from "./hub.js";
 
 // Cambiar en cada publicación: la tablet se recarga sola al detectarlo.
-const VERSION = "1.28.8";
+const VERSION = "1.28.10";
 
 // Todo lo de la casa en una sola petición para el panel
 async function homeSnapshot(env) {
@@ -436,8 +436,24 @@ async function handleApi(request, env, url, ctx) {
   if (path === "/api/presence") {
     if (method === "GET") return json({ ok: true, presence: await S.getPresence(env) });
     if (method === "POST") {
-      const b = await body(request);
-      const r = await S.setPresence(env, b.who || b.quien, b.state || b.estado);
+      // Acepta JSON, formulario o parámetros en el enlace (los Atajos del iPhone a veces mandan formulario)
+      let b = {};
+      const ct = request.headers.get("Content-Type") || "";
+      try {
+        if (/json/i.test(ct)) b = await request.json();
+        else if (/form/i.test(ct)) b = Object.fromEntries(await request.formData());
+        else { const t = await request.text(); try { b = JSON.parse(t); } catch { b = Object.fromEntries(new URLSearchParams(t)); } }
+      } catch { b = {}; }
+      for (const [k, v] of url.searchParams) if (!(k in b)) b[k] = v;
+      const pick = (o, ...keys) => { for (const k of Object.keys(o)) if (keys.includes(k.trim().toLowerCase())) return String(o[k]).trim(); return ""; };
+      const who = pick(b, "who", "quien", "quién", "nombre"), state = pick(b, "state", "estado");
+      let r;
+      try { r = await S.setPresence(env, who, state); }
+      catch (e) {
+        console.log("presencia rechazada", JSON.stringify({ ct, keys: Object.keys(b), who, state, error: e.message }));
+        await env.NEXUS_KV.put("presence:lasterror", JSON.stringify({ at: new Date().toISOString(), ct, keys: Object.keys(b), who, state, error: e.message }), { expirationTtl: 7 * 86400 });
+        throw e;
+      }
       notify(env, ctx, { type: "presence", presence: r.presence, arrived: r.arrived ? r.name : null });
       if (r.delivered.length) { const notes = await H.listNotes(env); notify(env, ctx, { type: "notes", notes, added: r.delivered[0].id }); notify(env, ctx, { type: "errands", errands: await S.listErrands(env) }); }
       return json({ ok: true, ...r });
